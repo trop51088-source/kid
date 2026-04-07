@@ -1,5 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library';
+import { initializeApp } from 'firebase/app';
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+
+const firebaseApp = initializeApp({
+  apiKey: "AIzaSyDWobakstAyjx-rTGJupLDgDZ_Jzkfv0xc",
+  authDomain: "kidpill.firebaseapp.com",
+  projectId: "kidpill",
+  storageBucket: "kidpill.firebasestorage.app",
+  messagingSenderId: "228749438184",
+  appId: "1:228749438184:web:7d08dfc0f83e3942d72d5d",
+});
+const auth = getAuth(firebaseApp);
 
 const getApiUrl = (endpoint) => `/api/${endpoint}`;
 
@@ -42,9 +54,10 @@ const TrashIcon = () => (
 
 // ── AUTH SCREEN ──
 const AuthScreen = ({ onAuth }) => {
-  const [step, setStep] = useState(1); // 1 = phone, 2 = code
+  const [step, setStep] = useState('phone'); // 'phone' | 'code'
   const [phone, setPhone] = useState('');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
+  const [confirmationResult, setConfirmationResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [timer, setTimer] = useState(0);
@@ -71,27 +84,28 @@ const AuthScreen = ({ onAuth }) => {
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
-  const handlePhoneInput = (e) => {
-    const raw = e.target.value.replace(/\D/g, '');
-    setPhone(raw.slice(0, 10));
-    setError('');
-  };
-
   const sendCode = async () => {
-    if (phone.length < 10) { setError('Введите полный номер телефона'); return; }
+    const digits10 = phone.replace(/\D/g, '');
+    if (digits10.length < 10) { setError('Введите полный номер телефона'); return; }
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/send-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: '+7' + phone }),
-      });
-      const data = await res.json();
-      if (data.success) { setStep(2); startTimer(); setTimeout(() => codeRefs[0].current?.focus(), 100); }
-      else setError(data.error || 'Ошибка отправки кода');
-    } catch { setError('Ошибка сети'); }
-    finally { setLoading(false); }
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      }
+      const fullPhone = '+7' + digits10;
+      const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
+      setConfirmationResult(result);
+      setStep('code');
+      startTimer();
+      setTimeout(() => codeRefs[0].current?.focus(), 100);
+    } catch (e) {
+      setError('Ошибка отправки кода: ' + e.message);
+      // сбросить recaptcha при ошибке
+      window.recaptchaVerifier = null;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDigit = (i, val) => {
@@ -113,16 +127,16 @@ const AuthScreen = ({ onAuth }) => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: '+7' + phone, code }),
-      });
-      const data = await res.json();
-      if (data.success) { localStorage.setItem('pillbox_token', data.token); onAuth(data.token); }
-      else { setError(data.error || 'Неверный код'); setDigits(['', '', '', '', '', '']); codeRefs[0].current?.focus(); }
-    } catch { setError('Ошибка сети'); }
-    finally { setLoading(false); }
+      const result = await confirmationResult.confirm(code);
+      localStorage.setItem('pillbox_token', result.user.uid);
+      onAuth(result.user.uid);
+    } catch {
+      setError('Неверный код');
+      setDigits(['', '', '', '', '', '']);
+      setTimeout(() => codeRefs[0].current?.focus(), 50);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -135,8 +149,11 @@ const AuthScreen = ({ onAuth }) => {
         <span>Аптечка</span>
       </div>
 
+      {/* Invisible reCAPTCHA container */}
+      <div id="recaptcha-container" />
+
       <div className="auth-card">
-        {step === 1 ? (
+        {step === 'phone' ? (
           <>
             <h2 className="auth-title">Вход</h2>
             <p className="auth-sub">Введите номер телефона, мы отправим SMS с кодом</p>
@@ -147,7 +164,7 @@ const AuthScreen = ({ onAuth }) => {
                 type="tel"
                 placeholder="(900) 000-00-00"
                 value={formatPhone(phone)}
-                onChange={handlePhoneInput}
+                onChange={e => { setPhone(e.target.value.replace(/\D/g, '').slice(0, 10)); setError(''); }}
                 onKeyDown={e => e.key === 'Enter' && sendCode()}
                 inputMode="numeric"
               />
@@ -187,7 +204,7 @@ const AuthScreen = ({ onAuth }) => {
             >
               {timer > 0 ? `Повторить через ${timer}с` : 'Отправить код повторно'}
             </button>
-            <button className="auth-back" onClick={() => { setStep(1); setError(''); setDigits(['', '', '', '', '', '']); }}>
+            <button className="auth-back" onClick={() => { setStep('phone'); setError(''); setDigits(['', '', '', '', '', '']); }}>
               ← Изменить номер
             </button>
           </>
@@ -199,7 +216,7 @@ const AuthScreen = ({ onAuth }) => {
 
 const App = () => {
   // ── AUTH ──
-  const [token, setToken] = useState(() => localStorage.getItem('pillbox_token') || '');
+  const [authStep, setAuthStep] = useState(() => localStorage.getItem('pillbox_token') ? 'done' : 'phone');
 
   // ── NAV ──
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'search' | 'schedule' | 'profile'
@@ -351,7 +368,7 @@ const App = () => {
     try {
       const res = await fetch(getApiUrl('scan-text'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: text.trim() }),
       });
       const data = await res.json();
@@ -373,7 +390,7 @@ const App = () => {
     const formData = new FormData();
     formData.append('file', file, file.name);
     try {
-      const res = await fetch(getApiUrl('scan'), { method: 'POST', body: formData, headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(getApiUrl('scan'), { method: 'POST', body: formData });
       const data = await res.json();
       if (data.success) setScanResult(data);
       else setScanError(data.error || 'Код не распознан на фото');
@@ -444,9 +461,8 @@ const App = () => {
 
   const deleteIntake = (id) => { setIntakes(prev => prev.filter(i => i.id !== id)); setSwipedIntakeId(null); };
 
-  // Показать экран авторизации если нет токена
-  if (!token) {
-    return <AuthScreen onAuth={setToken} />;
+  if (authStep !== 'done') {
+    return <AuthScreen onAuth={() => setAuthStep('done')} />;
   }
 
   return (
@@ -781,7 +797,7 @@ const App = () => {
                 </button>
                 <button
                   className="logout-btn"
-                  onClick={() => { localStorage.removeItem('pillbox_token'); setToken(''); }}
+                  onClick={() => { localStorage.removeItem('pillbox_token'); setAuthStep('phone'); }}
                 >
                   Выйти
                 </button>

@@ -7,16 +7,6 @@
   node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/api/send-code"
-  to = "/.netlify/functions/send-code"
-  status = 200
-
-[[redirects]]
-  from = "/api/verify-code"
-  to = "/.netlify/functions/verify-code"
-  status = 200
-
-[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200

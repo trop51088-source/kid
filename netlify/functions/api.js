@@ -1,52 +1,24 @@
-import jwt from 'jsonwebtoken';
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-};
-
-const verifyToken = (event) => {
-  const auth = event.headers?.authorization || event.headers?.Authorization || '';
-  if (!auth.startsWith('Bearer ')) return null;
-  const token = auth.slice(7);
-  try {
-    return jwt.verify(token, process.env.JWT_SECRET);
-  } catch {
-    return null;
-  }
-};
-
 export const handler = async (event) => {
   const fullPath = event.path || '';
   const path = fullPath.toLowerCase().replace(/^.*?\/(api|functions\/api)/, '');
 
   console.log(`[Function] Method: ${event.httpMethod}, FullPath: ${fullPath}, CleanPath: ${path}`);
 
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  };
+
   if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: CORS, body: '' };
+    return { statusCode: 200, headers, body: '' };
   }
 
-  // Проверка JWT для защищённых роутов
-  const user = verifyToken(event);
-  if (!user) {
-    return {
-      statusCode: 401,
-      headers: CORS,
-      body: JSON.stringify({ success: false, error: 'Unauthorized' }),
-    };
-  }
-
-  // Роут для получения инфо по тексту (коду)
   if ((path === '/scan-text' || path === 'scan-text') && event.httpMethod === 'POST') {
     try {
       const { text } = JSON.parse(event.body);
       if (!text) {
-        return {
-          statusCode: 400,
-          headers: CORS,
-          body: JSON.stringify({ success: false, error: 'No text provided' }),
-        };
+        return { statusCode: 400, headers, body: JSON.stringify({ success: false, error: 'No text provided' }) };
       }
 
       console.log(`Checking code: ${text}`);
@@ -62,26 +34,17 @@ export const handler = async (event) => {
       if (!response.ok) throw new Error(`CRPT API error: ${response.status}`);
 
       const data = await response.json();
-      return {
-        statusCode: 200,
-        headers: CORS,
-        body: JSON.stringify({ success: true, cis: text, data }),
-      };
+      return { statusCode: 200, headers, body: JSON.stringify({ success: true, cis: text, data }) };
     } catch (error) {
       console.error('Error in scan-text:', error);
-      return {
-        statusCode: 500,
-        headers: CORS,
-        body: JSON.stringify({ success: false, error: error.message }),
-      };
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message }) };
     }
   }
 
-  // Роут для сканирования изображения
   if ((path === '/scan' || path === 'scan') && event.httpMethod === 'POST') {
     return {
       statusCode: 501,
-      headers: CORS,
+      headers,
       body: JSON.stringify({
         success: false,
         error: 'Серверное распознавание фото временно недоступно на Netlify. Используйте камеру или локальное распознавание.',
@@ -89,9 +52,5 @@ export const handler = async (event) => {
     };
   }
 
-  return {
-    statusCode: 404,
-    headers: CORS,
-    body: JSON.stringify({ error: 'Not Found' }),
-  };
+  return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not Found' }) };
 };
