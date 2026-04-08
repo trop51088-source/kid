@@ -1,17 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library';
-import { initializeApp } from 'firebase/app';
-import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-
-const firebaseApp = initializeApp({
-  apiKey: "AIzaSyDWobakstAyjx-rTGJupLDgDZ_Jzkfv0xc",
-  authDomain: "kidpill.firebaseapp.com",
-  projectId: "kidpill",
-  storageBucket: "kidpill.firebasestorage.app",
-  messagingSenderId: "228749438184",
-  appId: "1:228749438184:web:7d08dfc0f83e3942d72d5d",
-});
-const auth = getAuth(firebaseApp);
 
 const getApiUrl = (endpoint) => `/api/${endpoint}`;
 
@@ -57,7 +45,6 @@ const AuthScreen = ({ onAuth }) => {
   const [step, setStep] = useState('phone'); // 'phone' | 'code'
   const [phone, setPhone] = useState('');
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
-  const [confirmationResult, setConfirmationResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [timer, setTimer] = useState(0);
@@ -90,19 +77,21 @@ const AuthScreen = ({ onAuth }) => {
     setLoading(true);
     setError('');
     try {
-      if (!window.recaptchaVerifier) {
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      const res = await fetch('/api/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: '+7' + digits10 }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setStep('code');
+        startTimer();
+        setTimeout(() => codeRefs[0].current?.focus(), 100);
+      } else {
+        setError(data.error || 'Ошибка отправки кода');
       }
-      const fullPhone = '+7' + digits10;
-      const result = await signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier);
-      setConfirmationResult(result);
-      setStep('code');
-      startTimer();
-      setTimeout(() => codeRefs[0].current?.focus(), 100);
-    } catch (e) {
-      setError('Ошибка отправки кода: ' + e.message);
-      // сбросить recaptcha при ошибке
-      window.recaptchaVerifier = null;
+    } catch {
+      setError('Ошибка сети');
     } finally {
       setLoading(false);
     }
@@ -127,13 +116,22 @@ const AuthScreen = ({ onAuth }) => {
     setLoading(true);
     setError('');
     try {
-      const result = await confirmationResult.confirm(code);
-      localStorage.setItem('pillbox_token', result.user.uid);
-      onAuth(result.user.uid);
+      const res = await fetch('/api/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: '+7' + phone.replace(/\D/g, ''), code }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem('pillbox_token', data.token);
+        onAuth(data.token);
+      } else {
+        setError(data.error || 'Неверный код');
+        setDigits(['', '', '', '', '', '']);
+        setTimeout(() => codeRefs[0].current?.focus(), 50);
+      }
     } catch {
-      setError('Неверный код');
-      setDigits(['', '', '', '', '', '']);
-      setTimeout(() => codeRefs[0].current?.focus(), 50);
+      setError('Ошибка сети');
     } finally {
       setLoading(false);
     }
@@ -148,9 +146,6 @@ const AuthScreen = ({ onAuth }) => {
         </svg>
         <span>Аптечка</span>
       </div>
-
-      {/* Invisible reCAPTCHA container */}
-      <div id="recaptcha-container" />
 
       <div className="auth-card">
         {step === 'phone' ? (
