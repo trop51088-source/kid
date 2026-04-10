@@ -53,6 +53,15 @@ const TrashIcon = () => (
   </svg>
 );
 
+const GoogleIcon = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+  </svg>
+);
+
 // ── AUTH SCREEN ──
 const AuthScreen = ({ onAuth }) => {
   const [loading, setLoading] = useState(false);
@@ -75,11 +84,10 @@ const AuthScreen = ({ onAuth }) => {
   return (
     <div className="auth-screen">
       <div className="auth-logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="40" height="40">
-          <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
-          <path d="M12 8v8M8 12h8"/>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="72" height="72">
+          <path d="M20 6h-2.18c.07-.44.18-.87.18-1.33C18 2.09 15.91 0 13.33 0c-1.4 0-2.5.59-3.33 1.5C9.17.59 8.07 0 6.67 0 4.09 0 2 2.09 2 4.67c0 .46.11.89.18 1.33H0v14a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zM9 18H7v-2h2v2zm0-4H7v-6h2v6zm4 4h-2v-2h2v2zm0-4h-2v-6h2v6zm4 4h-2v-2h2v2zm0-4h-2v-6h2v6z"/>
         </svg>
-        <span>Аптечка</span>
+        <span className="auth-app-name">МОЯ АПТЕЧКА</span>
       </div>
 
       <div className="auth-card">
@@ -87,19 +95,51 @@ const AuthScreen = ({ onAuth }) => {
         <p className="auth-sub">Войдите в аккаунт чтобы получить доступ к своей аптечке</p>
         {error && <p className="auth-error">{error}</p>}
         <button className="google-btn" onClick={handleGoogleSignIn} disabled={loading}>
-          {loading ? (
-            <span>Вход...</span>
-          ) : (
-            <>
-              <svg viewBox="0 0 24 24" width="20" height="20">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Войти через Google
-            </>
-          )}
+          {loading ? <span>Вход...</span> : <><GoogleIcon />Войти через Google</>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── ONBOARDING SCREEN ──
+const OnboardingScreen = ({ onDone }) => {
+  const [name, setName] = useState('');
+  const [allergy, setAllergy] = useState('');
+
+  const handleSubmit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const profile = { name: trimmed, allergy: allergy.trim(), phone: '' };
+    localStorage.setItem('pillbox_profile', JSON.stringify(profile));
+    onDone(profile);
+  };
+
+  return (
+    <div className="auth-screen">
+      <div className="onboard-content">
+        <h1 className="onboard-title">Добро пожаловать!</h1>
+
+        <label className="field-label">Ваше имя</label>
+        <input
+          className="field-input"
+          placeholder=""
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+          autoFocus
+        />
+
+        <label className="field-label">Аллергии / Заболевания</label>
+        <input
+          className="field-input"
+          placeholder="Необязательно"
+          value={allergy}
+          onChange={e => setAllergy(e.target.value)}
+        />
+
+        <button className="primary-btn" onClick={handleSubmit} disabled={!name.trim()}>
+          Войти
         </button>
       </div>
     </div>
@@ -108,7 +148,11 @@ const AuthScreen = ({ onAuth }) => {
 
 const App = () => {
   // ── AUTH ──
-  const [authStep, setAuthStep] = useState(() => localStorage.getItem('pillbox_token') ? 'done' : 'phone');
+  const [authStep, setAuthStep] = useState(() => {
+    if (!localStorage.getItem('pillbox_token')) return 'login';
+    const p = JSON.parse(localStorage.getItem('pillbox_profile') || '{}');
+    return p.name ? 'done' : 'onboarding';
+  });
 
   // ── NAV ──
   const [activeTab, setActiveTab] = useState('home'); // 'home' | 'search' | 'schedule' | 'profile'
@@ -360,8 +404,15 @@ const App = () => {
 
   const deleteIntake = (id) => { setIntakes(prev => prev.filter(i => i.id !== id)); setSwipedIntakeId(null); };
 
-  if (authStep !== 'done') {
-    return <AuthScreen onAuth={() => setAuthStep('done')} />;
+  if (authStep === 'login') {
+    return <AuthScreen onAuth={() => {
+      const p = JSON.parse(localStorage.getItem('pillbox_profile') || '{}');
+      setAuthStep(p.name ? 'done' : 'onboarding');
+    }} />;
+  }
+
+  if (authStep === 'onboarding') {
+    return <OnboardingScreen onDone={(p) => { setProfile(p); setAuthStep('done'); }} />;
   }
 
   return (
@@ -696,7 +747,7 @@ const App = () => {
                 </button>
                 <button
                   className="logout-btn"
-                  onClick={async () => { await signOut(auth); localStorage.removeItem('pillbox_token'); setAuthStep('phone'); }}
+                  onClick={async () => { await signOut(auth); localStorage.removeItem('pillbox_token'); setAuthStep('login'); }}
                 >
                   Выйти
                 </button>
