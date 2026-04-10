@@ -753,51 +753,27 @@ body {
   margin-top: -4px;
 }
 
-.code-inputs {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 16px;
-}
-.code-cell {
-  width: 44px;
-  height: 52px;
-  border-radius: 12px;
-  border: 1.5px solid #e0e0e0;
-  background: #f4f4f4;
-  text-align: center;
-  font-size: 22px;
-  font-weight: 700;
-  font-family: inherit;
-  color: #000;
-  outline: none;
-  transition: border-color 0.15s;
-}
-.code-cell:focus { border-color: #000; background: #fff; }
-
-.auth-resend {
+.google-btn {
   width: 100%;
-  margin-top: 12px;
-  padding: 12px;
-  background: none;
-  border: none;
-  font-size: 14px;
+  padding: 14px 20px;
+  background: #fff;
+  color: #333;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: #555;
-  cursor: pointer;
   font-family: inherit;
-}
-.auth-resend:disabled { color: #aaa; cursor: default; }
-
-.auth-back {
-  background: none;
-  border: none;
-  font-size: 13px;
-  color: #999;
   cursor: pointer;
-  font-family: inherit;
-  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
+.google-btn:hover { background: #f7f7f7; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+.google-btn:active { background: #f0f0f0; }
+.google-btn:disabled { opacity: 0.6; cursor: default; }
 
 /* ── LOGOUT BTN ── */
 .logout-btn {
