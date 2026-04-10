@@ -257,20 +257,27 @@ const App = () => {
   const fetchProduct = async (text) => {
     setLoading(true);
     stopScanner();
-    try {
-      const res = await fetch(getApiUrl('scan-text'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) setScanResult(data);
-      else setScanError(data.error || 'Лекарство не найдено');
-    } catch (e) {
-      setScanError('Ошибка сервера: ' + e.message);
-    } finally {
-      setLoading(false);
+    const cis = text.trim();
+    const endpoints = [
+      `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
+      `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
+      `https://честныйзнак.рф/api/v1/check?cis=${encodeURIComponent(cis)}`,
+    ];
+    let lastError = null;
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { lastError = `HTTP ${res.status}`; continue; }
+        const data = await res.json();
+        setScanResult({ success: true, cis, data });
+        setLoading(false);
+        return;
+      } catch (e) {
+        lastError = e.message;
+      }
     }
+    setScanError('Не удалось получить данные о препарате. Попробуйте позже.');
+    setLoading(false);
   };
 
   const handlePhotoUpload = async (e) => {
