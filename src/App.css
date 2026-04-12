@@ -104,6 +104,7 @@ body {
   align-items: stretch;
   border-radius: 16px;
   overflow: hidden;
+  transition: none;
 }
 
 .med-card {
@@ -512,6 +513,18 @@ body {
 }
 .sheet::-webkit-scrollbar { display: none; }
 
+/* ── DELETE ANIMATION ── */
+@keyframes rowDelete {
+  0%   { opacity: 1; max-height: 120px; transform: translateX(0);   margin-bottom: 12px; }
+  100% { opacity: 0; max-height: 0;     transform: translateX(60px); margin-bottom: 0;   }
+}
+
+.row-deleting {
+  animation: rowDelete 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 /* ── INTAKE LIST ── */
 .intake-list { display: flex; flex-direction: column; gap: 10px; }
 
@@ -596,8 +609,8 @@ body {
 }
 
 .profile-avatar {
-  width: 72px;
-  height: 72px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   background: #c8e6c9;
   display: flex;
@@ -606,6 +619,25 @@ body {
   color: #2e7d32;
   flex-shrink: 0;
   position: relative;
+  overflow: hidden;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.profile-avatar:active { opacity: 0.85; }
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.profile-avatar-initials {
+  font-size: 28px;
+  font-weight: 700;
+  color: #2e7d32;
+  text-transform: uppercase;
 }
 
 .avatar-edit-badge {
@@ -614,12 +646,20 @@ body {
   right: 2px;
   width: 22px;
   height: 22px;
-  background: #000;
+  background: rgba(0,0,0,0.65);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   border: 2px solid #A8CBE8;
+}
+
+.profile-email {
+  color: #555;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: default;
+  user-select: text;
 }
 
 .profile-name-field {

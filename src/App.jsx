@@ -194,8 +194,13 @@ const App = () => {
   });
   const [profileEdit, setProfileEdit] = useState(false);
   const [profileName, setProfileName] = useState('');
-  const [profilePhone, setProfilePhone] = useState('');
   const [profileAllergy, setProfileAllergy] = useState('');
+  const [avatar, setAvatar] = useState(() => localStorage.getItem('pillbox_avatar') || '');
+  const avatarInputRef = useRef(null);
+
+  // ── DELETING ANIMATIONS ──
+  const [deletingMeds, setDeletingMeds] = useState(new Set());
+  const [deletingIntakes, setDeletingIntakes] = useState(new Set());
 
   // ── SCHEDULE ──
   const [intakes, setIntakes] = useState(() => {
@@ -224,15 +229,26 @@ const App = () => {
 
   const openProfile = () => {
     setProfileName(profile.name || '');
-    setProfilePhone(profile.phone || '');
     setProfileAllergy(profile.allergy || '');
     setProfileEdit(false);
     setActiveTab('profile');
   };
 
   const saveProfile = () => {
-    setProfile({ name: profileName, phone: profilePhone, allergy: profileAllergy });
+    setProfile({ name: profileName, allergy: profileAllergy });
     setProfileEdit(false);
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const b64 = ev.target.result;
+      setAvatar(b64);
+      localStorage.setItem('pillbox_avatar', b64);
+    };
+    reader.readAsDataURL(file);
   };
 
   // ── MANUAL ADD ──
@@ -368,7 +384,14 @@ const App = () => {
   };
 
   // ── MEDICINES LIST ──
-  const deleteMedicine = (id) => { setMedicines(prev => prev.filter(m => m.id !== id)); setSwipedMedId(null); };
+  const deleteMedicine = (id) => {
+    setSwipedMedId(null);
+    setDeletingMeds(prev => new Set(prev).add(id));
+    setTimeout(() => {
+      setMedicines(prev => prev.filter(m => m.id !== id));
+      setDeletingMeds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }, 350);
+  };
   const filteredMeds = medicines.filter(m => m.name.toLowerCase().includes(homeSearch.toLowerCase()));
 
   // ── PHARMACY SEARCH ──
@@ -402,7 +425,14 @@ const App = () => {
     setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
   };
 
-  const deleteIntake = (id) => { setIntakes(prev => prev.filter(i => i.id !== id)); setSwipedIntakeId(null); };
+  const deleteIntake = (id) => {
+    setSwipedIntakeId(null);
+    setDeletingIntakes(prev => new Set(prev).add(id));
+    setTimeout(() => {
+      setIntakes(prev => prev.filter(i => i.id !== id));
+      setDeletingIntakes(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }, 350);
+  };
 
   if (authStep === 'login') {
     return <AuthScreen onAuth={() => {
@@ -423,10 +453,13 @@ const App = () => {
         <div className="home-header">
           <h1 className="greeting">Привет, {profile.name || 'Артем'}</h1>
           <button className="avatar" onClick={openProfile}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="22" height="22">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-            </svg>
+            {avatar
+              ? <img src={avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="22" height="22">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                </svg>
+            }
           </button>
         </div>
 
@@ -451,8 +484,9 @@ const App = () => {
               const expired = isExpired(med.expDate);
               const low = med.quantity <= 5;
               const open = swipedMedId === med.id;
+              const deleting = deletingMeds.has(med.id);
               return (
-                <div key={med.id} className="med-row">
+                <div key={med.id} className={`med-row${deleting ? ' row-deleting' : ''}`}>
                   <div
                     className={`med-card${open ? ' swiped' : ''}`}
                     onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
@@ -630,8 +664,9 @@ const App = () => {
                   <div className="intake-list">
                     {intakes.map(item => {
                       const open = swipedIntakeId === item.id;
+                      const deleting = deletingIntakes.has(item.id);
                       return (
-                        <div key={item.id} className="intake-row">
+                        <div key={item.id} className={`intake-row${deleting ? ' row-deleting' : ''}`}>
                           <div
                             className={`intake-card${item.done ? ' intake-done' : ''}${open ? ' swiped' : ''}`}
                             onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
@@ -684,21 +719,25 @@ const App = () => {
               <button className="close-btn" onClick={() => setActiveTab('home')}>×</button>
             </div>
 
+            {/* Hidden file input for avatar */}
+            <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
+
             <div className="profile-row">
-              <div className="profile-avatar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="36" height="36">
-                  <circle cx="12" cy="8" r="4" />
-                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
-                </svg>
-                {profileEdit && (
-                  <div className="avatar-edit-badge">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="10" height="10">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                    </svg>
-                  </div>
+              <button className="profile-avatar" onClick={() => avatarInputRef.current?.click()}>
+                {avatar ? (
+                  <img src={avatar} alt="avatar" className="profile-avatar-img" />
+                ) : (
+                  <span className="profile-avatar-initials">
+                    {(auth.currentUser?.email?.[0] || profile.name?.[0] || '?').toUpperCase()}
+                  </span>
                 )}
-              </div>
+                <div className="avatar-edit-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="10" height="10">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </div>
+              </button>
               <div className="profile-name-field">
                 <label className="field-label">Ваше имя</label>
                 <input
@@ -712,17 +751,9 @@ const App = () => {
               </div>
             </div>
 
-            <label className="field-label" style={{ marginTop: 16 }}>Номер телефона</label>
-            <div className="phone-row">
-              <div className="phone-prefix">+7</div>
-              <input
-                className="field-input phone-input"
-                placeholder=""
-                type="tel"
-                value={profilePhone}
-                onChange={e => setProfilePhone(e.target.value)}
-                readOnly={!profileEdit}
-              />
+            <label className="field-label" style={{ marginTop: 16 }}>Email</label>
+            <div className="field-input profile-email">
+              {auth.currentUser?.email || 'Нет данных'}
             </div>
 
             <label className="field-label">Аллергия / Заболевания</label>
