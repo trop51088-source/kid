@@ -62,8 +62,6 @@ const GoogleIcon = () => (
 );
 
 // ── PHARMACY SHEET ──
-const YANDEX_KEY = '15eeb52b-7848-405c-9982-01d006b1a34e';
-
 const haversineKm = (lat1, lon1, lat2, lon2) => {
   const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
@@ -77,24 +75,35 @@ const SearchIcon = () => (
   </svg>
 );
 
+// Извлекает массив { name, desc, coords:[lat,lon] } из GeoObjectCollection ymaps
+const collectItems = (geoObjects) => {
+  const items = [];
+  geoObjects.each(obj => {
+    items.push({
+      name:   obj.properties.get('name') || 'Аптека',
+      desc:   obj.properties.get('description') || '',
+      coords: obj.geometry.getCoordinates(), // [lat, lon]
+    });
+  });
+  return items;
+};
+
 const PharmacySheet = ({ onClose }) => {
-  // ── Medicine search ──
   const [medName, setMedName]       = useState('');
-  const [medResults, setMedResults] = useState([]);
+  const [medResults, setMedResults] = useState([]);  // [{name,desc,coords}]
   const [medBusy, setMedBusy]       = useState(false);
   const [medMsg, setMedMsg]         = useState('');
 
-  // ── Map / nearby ──
-  const [mapCity, setMapCity]         = useState('');
-  const [pharmacies, setPharmacies]   = useState([]);
-  const [mapBusy, setMapBusy]         = useState(false);
-  const [mapMsg, setMapMsg]           = useState('');
-  const [userCoords, setUserCoords]   = useState(null);
+  const [mapCity, setMapCity]       = useState('');
+  const [pharmacies, setPharmacies] = useState([]);  // [{name,desc,coords}]
+  const [mapBusy, setMapBusy]       = useState(false);
+  const [mapMsg, setMapMsg]         = useState('');
+  const [userCoords, setUserCoords] = useState(null); // {lat, lon}
 
-  const mapRef  = useRef(null);
-  const ymap    = useRef(null);
+  const mapRef = useRef(null);
+  const ymap   = useRef(null);
 
-  // Init Yandex Map
+  // ── Инициализация карты ──
   useEffect(() => {
     let cancelled = false;
     const tryInit = () => {
@@ -114,114 +123,102 @@ const PharmacySheet = ({ onClose }) => {
     };
   }, []);
 
-  const putPlacemarks = (features, centerLat, centerLon) => {
+  // Добавляет коллекцию на карту и подгоняет bounds
+  const showOnMap = (geoObjects, centerCoords) => {
     const map = ymap.current;
-    if (!map || !window.ymaps) return;
+    if (!map) return;
     map.geoObjects.removeAll();
-    features.forEach(f => {
-      const [lon, lat] = f.geometry.coordinates;
-      const name = f.properties.name || 'Аптека';
-      const addr = f.properties.description || '';
-      map.geoObjects.add(new window.ymaps.Placemark([lat, lon], {
-        balloonContentHeader: name,
-        balloonContentBody:   addr,
-        hintContent:          name,
-      }));
-    });
-    if (centerLat != null) map.setCenter([centerLat, centerLon], 13);
-    else if (features.length) {
-      const [lon, lat] = features[0].geometry.coordinates;
-      map.setCenter([lat, lon], 13);
+    map.geoObjects.add(geoObjects);
+    const bounds = geoObjects.getBounds();
+    if (bounds) {
+      map.setBounds(bounds, { checkZoom: true, zoomMargin: 40 });
+    } else if (centerCoords) {
+      map.setCenter(centerCoords, 14);
     }
   };
 
-  // ── Search medicine in pharmacies ──
-  const searchMedicine = async () => {
+  // ── Поиск лекарства в аптеках ──
+  const searchMedicine = () => {
     const q = medName.trim();
-    if (!q) return;
+    if (!q || !window.ymaps) return;
     setMedBusy(true); setMedMsg(''); setMedResults([]);
-    try {
-      const ll = userCoords ? `${userCoords.lon},${userCoords.lat}` : '37.6173,55.7558';
-      const res = await fetch(
-        `https://search-maps.yandex.ru/v1/?text=${encodeURIComponent('аптека ' + q)}&type=biz&lang=ru_RU&apikey=${YANDEX_KEY}&ll=${ll}&spn=0.5,0.5&results=20`
-      );
-      const data = await res.json();
-      const features = data.features || [];
-      setMedResults(features);
-      if (!features.length) setMedMsg('Аптеки с этим лекарством не найдены.');
-    } catch {
-      setMedMsg('Ошибка поиска. Проверьте интернет-соединение.');
-    } finally {
-      setMedBusy(false);
-    }
+    const query = userCoords
+      ? `аптека ${q}`
+      : `аптека ${q}`;
+    const opts = userCoords
+      ? { results: 20, boundedBy: [[userCoords.lat - 0.3, userCoords.lon - 0.3], [userCoords.lat + 0.3, userCoords.lon + 0.3]] }
+      : { results: 20 };
+    window.ymaps.ready(() => {
+      window.ymaps.search(query, opts)
+        .then(res => {
+          const items = collectItems(res.geoObjects);
+          setMedResults(items);
+          if (!items.length) setMedMsg('Аптеки с этим лекарством не найдены.');
+        })
+        .catch(() => setMedMsg('Ошибка поиска. Проверьте интернет-соединение.'))
+        .finally(() => setMedBusy(false));
+    });
   };
 
-  // ── Search pharmacies by city (map) ──
-  const searchByCity = async () => {
+  // ── Поиск аптек по городу ──
+  const searchByCity = () => {
     const q = mapCity.trim();
-    if (!q) return;
+    if (!q || !window.ymaps) return;
     setMapBusy(true); setMapMsg('');
-    try {
-      const res = await fetch(
-        `https://search-maps.yandex.ru/v1/?text=${encodeURIComponent('аптека ' + q)}&type=biz&lang=ru_RU&apikey=${YANDEX_KEY}&results=20`
-      );
-      const data = await res.json();
-      const features = data.features || [];
-      setPharmacies(features);
-      putPlacemarks(features, null, null);
-      if (!features.length) setMapMsg('Аптеки не найдены.');
-    } catch {
-      setMapMsg('Ошибка поиска.');
-    } finally {
-      setMapBusy(false);
-    }
+    window.ymaps.ready(() => {
+      window.ymaps.search(`аптека ${q}`, { results: 20 })
+        .then(res => {
+          const items = collectItems(res.geoObjects);
+          setPharmacies(items);
+          showOnMap(res.geoObjects, items[0]?.coords);
+          if (!items.length) setMapMsg('Аптеки не найдены.');
+        })
+        .catch(() => setMapMsg('Ошибка поиска.'))
+        .finally(() => setMapBusy(false));
+    });
   };
 
-  // ── Geolocation ──
+  // ── Геолокация ──
   const useMyLocation = () => {
     if (!navigator.geolocation) { setMapMsg('Геолокация недоступна.'); return; }
     setMapBusy(true); setMapMsg('');
     navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude: lat, longitude: lon } }) => {
+      ({ coords: { latitude: lat, longitude: lon } }) => {
         setUserCoords({ lat, lon });
-        try {
-          const res = await fetch(
-            `https://search-maps.yandex.ru/v1/?text=аптека&type=biz&lang=ru_RU&apikey=${YANDEX_KEY}&ll=${lon},${lat}&spn=0.1,0.1&results=20`
-          );
-          const data = await res.json();
-          const features = data.features || [];
-          setPharmacies(features);
+        if (!window.ymaps) { setMapBusy(false); return; }
+        window.ymaps.ready(() => {
           const map = ymap.current;
-          if (map && window.ymaps) {
-            map.geoObjects.removeAll();
-            map.geoObjects.add(new window.ymaps.Placemark([lat, lon], {
-              hintContent: 'Вы здесь', balloonContent: 'Вы здесь',
-            }, { preset: 'islands#blueCircleDotIcon' }));
-            features.forEach(f => {
-              const [flon, flat] = f.geometry.coordinates;
-              map.geoObjects.add(new window.ymaps.Placemark([flat, flon], {
-                balloonContentHeader: f.properties.name || 'Аптека',
-                balloonContentBody:   f.properties.description || '',
-                hintContent:          f.properties.name || 'Аптека',
-              }));
-            });
-            map.setCenter([lat, lon], 14);
-          }
-          if (!features.length) setMapMsg('Аптеки рядом не найдены.');
-        } catch {
-          setMapMsg('Ошибка поиска аптек.');
-        } finally {
-          setMapBusy(false);
-        }
+          if (map) map.setCenter([lat, lon], 14);
+          window.ymaps.search('аптека', {
+            results: 20,
+            boundedBy: [[lat - 0.05, lon - 0.05], [lat + 0.05, lon + 0.05]],
+            strictBounds: true,
+          })
+            .then(res => {
+              const items = collectItems(res.geoObjects);
+              setPharmacies(items);
+              if (map) {
+                map.geoObjects.removeAll();
+                // Маркер «Вы здесь»
+                map.geoObjects.add(new window.ymaps.Placemark([lat, lon], {
+                  hintContent: 'Вы здесь', balloonContent: 'Вы здесь',
+                }, { preset: 'islands#blueCircleDotIcon' }));
+                map.geoObjects.add(res.geoObjects);
+                map.setCenter([lat, lon], 14);
+              }
+              if (!items.length) setMapMsg('Аптеки рядом не найдены.');
+            })
+            .catch(() => setMapMsg('Ошибка поиска аптек.'))
+            .finally(() => setMapBusy(false));
+        });
       },
       () => { setMapMsg('Нет доступа к местоположению.'); setMapBusy(false); }
     );
   };
 
-  const focusOnPharmacy = (f) => {
+  const focusOnPharmacy = (item) => {
     if (!ymap.current) return;
-    const [lon, lat] = f.geometry.coordinates;
-    ymap.current.setCenter([lat, lon], 16);
+    ymap.current.setCenter(item.coords, 16);
   };
 
   return (
@@ -250,16 +247,15 @@ const PharmacySheet = ({ onClose }) => {
         {medMsg && <p className="pharm-status">{medMsg}</p>}
         {medResults.length > 0 && (
           <div className="pharm-list" style={{ marginBottom: 8 }}>
-            {medResults.map((f, i) => {
-              const [lon, lat] = f.geometry.coordinates;
-              const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, lat, lon) : null;
+            {medResults.map((item, i) => {
+              const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, item.coords[0], item.coords[1]) : null;
               return (
                 <div key={i} className="pharm-card">
                   <div className="pharm-card-top">
-                    <span className="pharm-name">{f.properties.name || 'Аптека'}</span>
+                    <span className="pharm-name">{item.name}</span>
                     {dist !== null && <span className="pharm-dist">{fmtDist(dist)}</span>}
                   </div>
-                  {f.properties.description && <span className="pharm-desc">{f.properties.description}</span>}
+                  {item.desc && <span className="pharm-desc">{item.desc}</span>}
                 </div>
               );
             })}
@@ -296,16 +292,15 @@ const PharmacySheet = ({ onClose }) => {
 
         {pharmacies.length > 0 && (
           <div className="pharm-list">
-            {pharmacies.map((f, i) => {
-              const [lon, lat] = f.geometry.coordinates;
-              const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, lat, lon) : null;
+            {pharmacies.map((item, i) => {
+              const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, item.coords[0], item.coords[1]) : null;
               return (
-                <button key={i} className="pharm-card" onClick={() => focusOnPharmacy(f)}>
+                <button key={i} className="pharm-card" onClick={() => focusOnPharmacy(item)}>
                   <div className="pharm-card-top">
-                    <span className="pharm-name">{f.properties.name || 'Аптека'}</span>
+                    <span className="pharm-name">{item.name}</span>
                     {dist !== null && <span className="pharm-dist">{fmtDist(dist)}</span>}
                   </div>
-                  {f.properties.description && <span className="pharm-desc">{f.properties.description}</span>}
+                  {item.desc && <span className="pharm-desc">{item.desc}</span>}
                 </button>
               );
             })}
