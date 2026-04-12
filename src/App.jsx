@@ -123,18 +123,23 @@ const PharmacySheet = ({ onClose }) => {
     };
   }, []);
 
-  // Добавляет коллекцию на карту и подгоняет bounds
-  const showOnMap = (geoObjects, centerCoords) => {
-    const map = ymap.current;
-    if (!map) return;
+  // Рисует индивидуальные маркеры из результатов ymaps.search
+  const renderPlacemarks = (res, map, extraMark) => {
     map.geoObjects.removeAll();
-    map.geoObjects.add(geoObjects);
-    const bounds = geoObjects.getBounds();
-    if (bounds) {
-      map.setBounds(bounds, { checkZoom: true, zoomMargin: 40 });
-    } else if (centerCoords) {
-      map.setCenter(centerCoords, 14);
-    }
+    if (extraMark) map.geoObjects.add(extraMark);
+    const items = [];
+    res.geoObjects.each(obj => {
+      const coords  = obj.geometry.getCoordinates();
+      const name    = obj.properties.get('name') || 'Аптека';
+      const address = obj.properties.get('text') || obj.properties.get('description') || '';
+      items.push({ name, desc: address, coords });
+      map.geoObjects.add(new window.ymaps.Placemark(coords, {
+        balloonContentHeader: name,
+        balloonContentBody:   address,
+        hintContent:          name,
+      }, { preset: 'islands#redMedicalIcon' }));
+    });
+    return items;
   };
 
   // ── Поиск лекарства в аптеках ──
@@ -142,16 +147,23 @@ const PharmacySheet = ({ onClose }) => {
     const q = medName.trim();
     if (!q || !window.ymaps) return;
     setMedBusy(true); setMedMsg(''); setMedResults([]);
-    const query = userCoords
-      ? `аптека ${q}`
-      : `аптека ${q}`;
-    const opts = userCoords
-      ? { results: 20, boundedBy: [[userCoords.lat - 0.3, userCoords.lon - 0.3], [userCoords.lat + 0.3, userCoords.lon + 0.3]] }
-      : { results: 20 };
+    const map  = ymap.current;
+    const opts = {
+      results: 30,
+      searchCoordOrder: 'lonlat',
+      ...(map ? { boundedBy: map.getBounds(), strictBounds: false } : {}),
+    };
     window.ymaps.ready(() => {
-      window.ymaps.search(query, opts)
+      window.ymaps.search(`аптека ${q}`, opts)
         .then(res => {
-          const items = collectItems(res.geoObjects);
+          const items = [];
+          res.geoObjects.each(obj => {
+            items.push({
+              name:   obj.properties.get('name') || 'Аптека',
+              desc:   obj.properties.get('text') || obj.properties.get('description') || '',
+              coords: obj.geometry.getCoordinates(),
+            });
+          });
           setMedResults(items);
           if (!items.length) setMedMsg('Аптеки с этим лекарством не найдены.');
         })
@@ -166,11 +178,18 @@ const PharmacySheet = ({ onClose }) => {
     if (!q || !window.ymaps) return;
     setMapBusy(true); setMapMsg('');
     window.ymaps.ready(() => {
-      window.ymaps.search(`аптека ${q}`, { results: 20 })
+      window.ymaps.search(`аптека ${q}`, {
+        results: 30,
+        searchCoordOrder: 'lonlat',
+        strictBounds: false,
+      })
         .then(res => {
-          const items = collectItems(res.geoObjects);
+          const map = ymap.current;
+          if (!map) return;
+          const items = renderPlacemarks(res, map, null);
           setPharmacies(items);
-          showOnMap(res.geoObjects, items[0]?.coords);
+          const bounds = res.geoObjects.getBounds();
+          if (bounds) map.setBounds(bounds, { checkZoom: true, zoomMargin: 40 });
           if (!items.length) setMapMsg('Аптеки не найдены.');
         })
         .catch(() => setMapMsg('Ошибка поиска.'))
@@ -188,24 +207,22 @@ const PharmacySheet = ({ onClose }) => {
         if (!window.ymaps) { setMapBusy(false); return; }
         window.ymaps.ready(() => {
           const map = ymap.current;
-          if (map) map.setCenter([lat, lon], 14);
+          if (!map) { setMapBusy(false); return; }
+          // Сначала центрируем карту, потом ищем по getBounds()
+          map.setCenter([lat, lon], 14);
+          // Маркер «Вы здесь»
+          const userMark = new window.ymaps.Placemark([lat, lon], {
+            hintContent: 'Вы здесь', balloonContent: 'Вы здесь',
+          }, { preset: 'islands#blueCircleDotIcon' });
           window.ymaps.search('аптека', {
-            results: 20,
-            boundedBy: [[lat - 0.05, lon - 0.05], [lat + 0.05, lon + 0.05]],
-            strictBounds: true,
+            boundedBy: map.getBounds(),
+            strictBounds: false,
+            results: 30,
+            searchCoordOrder: 'lonlat',
           })
             .then(res => {
-              const items = collectItems(res.geoObjects);
+              const items = renderPlacemarks(res, map, userMark);
               setPharmacies(items);
-              if (map) {
-                map.geoObjects.removeAll();
-                // Маркер «Вы здесь»
-                map.geoObjects.add(new window.ymaps.Placemark([lat, lon], {
-                  hintContent: 'Вы здесь', balloonContent: 'Вы здесь',
-                }, { preset: 'islands#blueCircleDotIcon' }));
-                map.geoObjects.add(res.geoObjects);
-                map.setCenter([lat, lon], 14);
-              }
               if (!items.length) setMapMsg('Аптеки рядом не найдены.');
             })
             .catch(() => setMapMsg('Ошибка поиска аптек.'))
