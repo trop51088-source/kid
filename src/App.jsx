@@ -61,6 +61,190 @@ const GoogleIcon = () => (
   </svg>
 );
 
+// ── PHARMACY SHEET ──
+const PharmacySheet = ({ onClose }) => {
+  const [city, setCity] = useState('');
+  const [pharmacies, setPharmacies] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+  const mapRef = useRef(null);
+  const leafletMap = useRef(null);
+  const markers = useRef([]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!mapRef.current || leafletMap.current || !window.L) return;
+      const L = window.L;
+      const map = L.map(mapRef.current, { zoomControl: true }).setView([55.7558, 37.6173], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+      }).addTo(map);
+      L.DomEvent.disableScrollPropagation(mapRef.current);
+      leafletMap.current = map;
+    }, 120);
+    return () => {
+      clearTimeout(timer);
+      if (leafletMap.current) { leafletMap.current.remove(); leafletMap.current = null; }
+    };
+  }, []);
+
+  const clearMarkers = () => { markers.current.forEach(m => m.remove()); markers.current = []; };
+
+  const placeMarkers = (data, centerLat, centerLon) => {
+    const map = leafletMap.current;
+    if (!map || !window.L) return;
+    clearMarkers();
+    const L = window.L;
+    const valid = data.filter(p => !isNaN(parseFloat(p.lat)) && !isNaN(parseFloat(p.lon)));
+    valid.forEach(p => {
+      const lat = parseFloat(p.lat);
+      const lon = parseFloat(p.lon);
+      const parts = (p.display_name || '').split(',');
+      const name = p.name || parts[0] || 'Аптека';
+      const addr = parts.slice(1, 3).join(',').trim();
+      const m = L.marker([lat, lon]).addTo(map)
+        .bindPopup(`<b>${name}</b>${addr ? '<br/>' + addr : ''}`);
+      markers.current.push(m);
+    });
+    if (centerLat != null) {
+      map.setView([centerLat, centerLon], 14);
+    } else if (valid.length) {
+      map.setView([parseFloat(valid[0].lat), parseFloat(valid[0].lon)], 14);
+    }
+    setPharmacies(valid);
+  };
+
+  const searchByCity = async () => {
+    const q = city.trim();
+    if (!q) return;
+    setSearching(true);
+    setStatusMsg('');
+    try {
+      const headers = { 'Accept-Language': 'ru,en' };
+      const [cityRes, pharmRes] = await Promise.all([
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=ru`, { headers }),
+        fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ' аптека')}&format=json&limit=20&countrycodes=ru`, { headers }),
+      ]);
+      const [cityData, pharmData] = await Promise.all([cityRes.json(), pharmRes.json()]);
+      const center = cityData[0];
+      placeMarkers(pharmData, center ? parseFloat(center.lat) : null, center ? parseFloat(center.lon) : null);
+      if (!pharmData.length) setStatusMsg('Аптеки не найдены. Попробуйте другой запрос.');
+    } catch {
+      setStatusMsg('Ошибка поиска. Проверьте интернет-соединение.');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const useLocation = () => {
+    if (!navigator.geolocation) { setStatusMsg('Геолокация недоступна на этом устройстве.'); return; }
+    setSearching(true);
+    setStatusMsg('');
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lon } }) => {
+        try {
+          if (leafletMap.current && window.L) {
+            window.L.marker([lat, lon], {
+              icon: window.L.divIcon({
+                className: '',
+                html: '<div style="width:14px;height:14px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 4px rgba(59,130,246,0.25)"></div>',
+                iconSize: [14, 14], iconAnchor: [7, 7],
+              }),
+            }).addTo(leafletMap.current);
+          }
+          const d = 0.05;
+          const viewbox = `${lon - d},${lat + d},${lon + d},${lat - d}`;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=аптека&format=json&limit=20&bounded=1&viewbox=${viewbox}`,
+            { headers: { 'Accept-Language': 'ru,en' } }
+          );
+          const data = await res.json();
+          placeMarkers(data, lat, lon);
+          if (!data.length) setStatusMsg('Аптеки рядом не найдены.');
+        } catch {
+          setStatusMsg('Ошибка поиска аптек.');
+        } finally {
+          setSearching(false);
+        }
+      },
+      () => { setStatusMsg('Нет доступа к местоположению.'); setSearching(false); }
+    );
+  };
+
+  const focusOn = (p) => {
+    const map = leafletMap.current;
+    if (!map) return;
+    const lat = parseFloat(p.lat);
+    const lon = parseFloat(p.lon);
+    map.setView([lat, lon], 16);
+    const m = markers.current.find(mk => {
+      const ll = mk.getLatLng();
+      return Math.abs(ll.lat - lat) < 0.0001 && Math.abs(ll.lng - lon) < 0.0001;
+    });
+    m?.openPopup();
+  };
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet">
+        <div className="sheet-header">
+          <h2>Аптеки на карте</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+
+        <div className="pharm-search-row">
+          <input
+            className="field-input"
+            style={{ marginBottom: 0, flex: 1 }}
+            placeholder="Город или адрес"
+            value={city}
+            onChange={e => setCity(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && searchByCity()}
+          />
+          <button className="pharm-search-btn" onClick={searchByCity} disabled={searching}>
+            {searching
+              ? <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} />
+              : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+            }
+          </button>
+        </div>
+
+        <button className="geo-btn" onClick={useLocation} disabled={searching}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+            <circle cx="12" cy="12" r="9" />
+          </svg>
+          Использовать моё местоположение
+        </button>
+
+        {statusMsg && <p className="pharm-status">{statusMsg}</p>}
+
+        <div className="map-container" ref={mapRef} />
+
+        {pharmacies.length > 0 && (
+          <div className="pharm-list">
+            {pharmacies.map((p, i) => {
+              const parts = (p.display_name || '').split(',');
+              const name = p.name || parts[0] || 'Аптека';
+              const addr = parts.slice(1, 3).join(',').trim();
+              return (
+                <button key={i} className="pharm-card" onClick={() => focusOn(p)}>
+                  <span className="pharm-name">{name}</span>
+                  {addr && <span className="pharm-desc">{addr}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── AUTH SCREEN ──
 const AuthScreen = ({ onAuth }) => {
   const [loading, setLoading] = useState(false);
@@ -180,11 +364,6 @@ const App = () => {
   const videoRef = useRef(null);
   const readerRef = useRef(null);
   const fileInputRef = useRef(null);
-
-  // ── PHARMACY SEARCH ──
-  const [pharmName, setPharmName] = useState('');
-  const [pharmResults, setPharmResults] = useState(false);
-  const [mapOpen, setMapOpen] = useState(false);
 
   // ── PROFILE ──
   const [profile, setProfile] = useState(() => {
@@ -393,17 +572,6 @@ const App = () => {
   };
   const filteredMeds = medicines.filter(m => m.name.toLowerCase().includes(homeSearch.toLowerCase()));
 
-  // ── PHARMACY SEARCH ──
-  const PHARMACY_LINKS = [
-    { name: 'Аптека.ру', desc: 'Крупная сеть аптек по России', url: (q) => `https://www.apteka.ru/search/?q=${encodeURIComponent(q)}` },
-    { name: 'Яндекс Маркет', desc: 'Поиск по аптекам и магазинам', url: (q) => `https://market.yandex.ru/search?text=${encodeURIComponent(q + ' аптека')}` },
-    { name: 'Ozon', desc: 'Маркетплейс, раздел с аптекой', url: (q) => `https://www.ozon.ru/search/?text=${encodeURIComponent(q)}` },
-  ];
-
-  const handlePharmSearch = () => {
-    if (pharmName.trim()) setPharmResults(true);
-  };
-
   // ── SCHEDULE ──
   const handleAddIntake = () => {
     if (!intakeName.trim()) return;
@@ -545,66 +713,7 @@ const App = () => {
 
       {/* ── PHARMACY SEARCH SHEET ── */}
       {activeTab === 'search' && (
-        <div className="overlay" onClick={e => e.target === e.currentTarget && setActiveTab('home')}>
-          <div className="sheet">
-            <div className="sheet-header">
-              <h2>{mapOpen ? 'Аптеки рядом' : 'Поиск по аптекам'}</h2>
-              <button className="close-btn" onClick={() => { setActiveTab('home'); setPharmResults(false); setMapOpen(false); setPharmName(''); }}>×</button>
-            </div>
-
-            {mapOpen ? (
-              <>
-                <input
-                  className="field-input"
-                  value="Санкт-Петербург"
-                  readOnly
-                  style={{ marginBottom: 14 }}
-                />
-                <div className="map-frame">
-                  <iframe
-                    title="Аптеки на карте"
-                    src="https://yandex.ru/map-widget/v1/?text=аптека&z=13&l=map"
-                    width="100%"
-                    height="100%"
-                    frameBorder="0"
-                    allowFullScreen
-                  />
-                </div>
-                <button className="secondary-btn" onClick={() => setMapOpen(false)} style={{ marginTop: 14 }}>← Назад</button>
-              </>
-            ) : (
-              <>
-                <label className="field-label">Название лекарства</label>
-                <input
-                  className="field-input"
-                  placeholder="Например, парацетамол"
-                  value={pharmName}
-                  onChange={e => { setPharmName(e.target.value); setPharmResults(false); }}
-                  onKeyDown={e => e.key === 'Enter' && handlePharmSearch()}
-                />
-                <button className="primary-btn" onClick={handlePharmSearch} style={{ marginBottom: 16 }}>
-                  Найти в магазинах
-                </button>
-
-                {pharmResults && pharmName.trim() && (
-                  <div className="pharm-list">
-                    {PHARMACY_LINKS.map(p => (
-                      <a key={p.name} className="pharm-card" href={p.url(pharmName)} target="_blank" rel="noopener noreferrer">
-                        <span className="pharm-name">{p.name}</span>
-                        <span className="pharm-desc">{p.desc}</span>
-                      </a>
-                    ))}
-                  </div>
-                )}
-
-                <p className="map-hint">Можно посмотреть на карте</p>
-                <button className="primary-btn" onClick={() => setMapOpen(true)}>
-                  Показать аптеки на карте
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <PharmacySheet onClose={() => setActiveTab('home')} />
       )}
 
       {/* ── SCHEDULE SHEET ── */}

@@ -454,6 +454,67 @@ body {
 .field-input::placeholder { color: #bbb; }
 .field-input--time { color: #666; }
 
+/* ── PHARMACY SEARCH ── */
+.pharm-search-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.pharm-search-btn {
+  width: 50px;
+  height: 50px;
+  flex-shrink: 0;
+  background: #000;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pharm-search-btn:active { opacity: 0.85; }
+.pharm-search-btn:disabled { opacity: 0.5; }
+
+.geo-btn {
+  width: 100%;
+  padding: 13px 16px;
+  background: #fff;
+  color: #333;
+  border: none;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.geo-btn:active { background: #f0f0f0; }
+.geo-btn:disabled { opacity: 0.5; }
+
+.pharm-status {
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.map-container {
+  width: 100%;
+  height: 350px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #dde8f0;
+  margin-bottom: 14px;
+  touch-action: none;
+  z-index: 0;
+}
+
 /* ── PHARMACY RESULTS ── */
 .pharm-list {
   display: flex;
@@ -463,11 +524,16 @@ body {
 }
 
 .pharm-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   background: #fff;
+  border: none;
   border-radius: 12px;
   padding: 14px 16px;
-  text-decoration: none;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
   color: inherit;
 }
 .pharm-card:active { background: #f0f0f0; }
@@ -484,21 +550,6 @@ body {
   font-size: 13px;
   color: #888;
 }
-
-.map-hint {
-  font-size: 13px;
-  color: #888;
-  margin-bottom: 10px;
-}
-
-.map-frame {
-  width: 100%;
-  height: 280px;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #eee;
-}
-.map-frame iframe { display: block; }
 
 /* ── GENERIC SHEET (search / schedule / profile) ── */
 .sheet {
