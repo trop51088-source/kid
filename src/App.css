@@ -455,6 +455,21 @@ body {
 .field-input--time { color: #666; }
 
 /* ── PHARMACY SEARCH ── */
+.pharm-section-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.pharm-divider {
+  height: 1px;
+  background: rgba(0,0,0,0.08);
+  margin: 18px 0;
+}
+
 .pharm-search-row {
   display: flex;
   gap: 10px;
@@ -533,17 +548,32 @@ body {
   padding: 14px 16px;
   text-align: left;
   font-family: inherit;
-  cursor: pointer;
   color: inherit;
+  cursor: default;
 }
-.pharm-card:active { background: #f0f0f0; }
+button.pharm-card { cursor: pointer; }
+button.pharm-card:active { background: #f0f0f0; }
+
+.pharm-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 2px;
+}
 
 .pharm-name {
-  display: block;
   font-size: 15px;
   font-weight: 700;
   color: #000;
-  margin-bottom: 2px;
+  flex: 1;
+}
+.pharm-dist {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 .pharm-desc {
   display: block;
