@@ -100,24 +100,24 @@ body {
 
 /* ── MED CARD ── */
 .med-row {
-  display: flex;
-  align-items: stretch;
+  position: relative;
   border-radius: 16px;
   overflow: hidden;
-  transition: none;
 }
 
 .med-card {
-  flex: 1;
+  width: 100%;
   background: #fff;
   border-radius: 16px;
   padding: 16px;
-  transition: border-radius 0.2s;
   user-select: none;
+  position: relative;
+  z-index: 1;
+  transform: translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .med-card.swiped {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  transform: translateX(-80px);
 }
 
 .med-top {
@@ -162,17 +162,19 @@ body {
 }
 
 .del-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80px;
   background: #ef4444;
   color: #fff;
   border: none;
-  padding: 0 22px;
   cursor: pointer;
-  border-top-right-radius: 16px;
-  border-bottom-right-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  z-index: 0;
 }
 .del-btn:active { background: #dc2626; }
 
@@ -515,8 +517,8 @@ body {
 
 /* ── DELETE ANIMATION ── */
 @keyframes rowDelete {
-  0%   { opacity: 1; max-height: 120px; transform: translateX(0);   margin-bottom: 12px; }
-  100% { opacity: 0; max-height: 0;     transform: translateX(60px); margin-bottom: 0;   }
+  0%   { opacity: 1; max-height: 120px; transform: translateX(0); }
+  100% { opacity: 0; max-height: 0;     transform: translateX(60px); }
 }
 
 .row-deleting {
@@ -529,14 +531,13 @@ body {
 .intake-list { display: flex; flex-direction: column; gap: 10px; }
 
 .intake-row {
-  display: flex;
-  align-items: stretch;
+  position: relative;
   border-radius: 14px;
   overflow: hidden;
 }
 
 .intake-card {
-  flex: 1;
+  width: 100%;
   background: #fff;
   border-radius: 14px;
   padding: 14px 16px;
@@ -544,11 +545,13 @@ body {
   justify-content: space-between;
   align-items: center;
   user-select: none;
-  transition: border-radius 0.2s;
+  position: relative;
+  z-index: 1;
+  transform: translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .intake-card.swiped {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+  transform: translateX(-80px);
 }
 .intake-card.intake-done {
   background: #f0f0f0;

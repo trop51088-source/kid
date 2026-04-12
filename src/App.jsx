@@ -487,13 +487,20 @@ const App = () => {
               const deleting = deletingMeds.has(med.id);
               return (
                 <div key={med.id} className={`med-row${deleting ? ' row-deleting' : ''}`}>
+                  <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}>
+                    <TrashIcon />
+                  </button>
                   <div
                     className={`med-card${open ? ' swiped' : ''}`}
                     onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+                    onTouchMove={e => {
+                      const dx = e.touches[0].clientX - touchStartX.current;
+                      if (dx < -10 && !open) e.stopPropagation();
+                    }}
                     onTouchEnd={e => {
                       const dx = e.changedTouches[0].clientX - touchStartX.current;
-                      if (dx < -50) setSwipedMedId(med.id);
-                      else if (dx > 50) setSwipedMedId(null);
+                      if (dx < -60) setSwipedMedId(med.id);
+                      else if (dx > 30) setSwipedMedId(null);
                     }}
                   >
                     <div className="med-top">
@@ -508,11 +515,6 @@ const App = () => {
                     </div>
                     {low && !expired && <div className="low-warning">Заканчивается! Нужно докупить</div>}
                   </div>
-                  {open && (
-                    <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}>
-                      <TrashIcon />
-                    </button>
-                  )}
                 </div>
               );
             })
@@ -667,13 +669,20 @@ const App = () => {
                       const deleting = deletingIntakes.has(item.id);
                       return (
                         <div key={item.id} className={`intake-row${deleting ? ' row-deleting' : ''}`}>
+                          <button className="del-btn" onClick={e => { e.stopPropagation(); deleteIntake(item.id); }}>
+                            <TrashIcon />
+                          </button>
                           <div
                             className={`intake-card${item.done ? ' intake-done' : ''}${open ? ' swiped' : ''}`}
                             onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
+                            onTouchMove={e => {
+                              const dx = e.touches[0].clientX - touchStartX.current;
+                              if (dx < -10 && !open) e.stopPropagation();
+                            }}
                             onTouchEnd={e => {
                               const dx = e.changedTouches[0].clientX - touchStartX.current;
-                              if (dx < -50) setSwipedIntakeId(item.id);
-                              else if (dx > 50) setSwipedIntakeId(null);
+                              if (dx < -60) setSwipedIntakeId(item.id);
+                              else if (dx > 30) setSwipedIntakeId(null);
                             }}
                           >
                             <div className="intake-info">
@@ -694,11 +703,6 @@ const App = () => {
                               </button>
                             </div>
                           </div>
-                          {open && (
-                            <button className="del-btn" onClick={e => { e.stopPropagation(); deleteIntake(item.id); }}>
-                              <TrashIcon />
-                            </button>
-                          )}
                         </div>
                       );
                     })}
