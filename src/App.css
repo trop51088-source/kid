@@ -117,7 +117,7 @@ body {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .med-card.swiped {
-  transform: translateX(-80px);
+  transform: translateX(-50px);
 }
 
 .med-top {
@@ -163,10 +163,12 @@ body {
 
 .del-btn {
   position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 80px;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   background: #ef4444;
   color: #fff;
   border: none;
@@ -175,6 +177,7 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 0;
+  flex-shrink: 0;
 }
 .del-btn:active { background: #dc2626; }
 
@@ -551,7 +554,7 @@ body {
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .intake-card.swiped {
-  transform: translateX(-80px);
+  transform: translateX(-50px);
 }
 .intake-card.intake-done {
   background: #f0f0f0;

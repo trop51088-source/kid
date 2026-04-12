@@ -45,11 +45,10 @@ const formatDate = (dateStr) => {
   return `${d}.${m}.${y}`;
 };
 
-const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
-    <polyline points="3 6 5 6 21 6" />
-    <path d="M19 6l-1 14H6L5 6" />
-    <path d="M10 11v6M14 11v6M9 6V4h6v2" />
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
 );
 
@@ -488,7 +487,7 @@ const App = () => {
               return (
                 <div key={med.id} className={`med-row${deleting ? ' row-deleting' : ''}`}>
                   <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}>
-                    <TrashIcon />
+                    <CloseIcon />
                   </button>
                   <div
                     className={`med-card${open ? ' swiped' : ''}`}
@@ -499,7 +498,7 @@ const App = () => {
                     }}
                     onTouchEnd={e => {
                       const dx = e.changedTouches[0].clientX - touchStartX.current;
-                      if (dx < -60) setSwipedMedId(med.id);
+                      if (dx < -40) setSwipedMedId(med.id);
                       else if (dx > 30) setSwipedMedId(null);
                     }}
                   >
@@ -670,7 +669,7 @@ const App = () => {
                       return (
                         <div key={item.id} className={`intake-row${deleting ? ' row-deleting' : ''}`}>
                           <button className="del-btn" onClick={e => { e.stopPropagation(); deleteIntake(item.id); }}>
-                            <TrashIcon />
+                            <CloseIcon />
                           </button>
                           <div
                             className={`intake-card${item.done ? ' intake-done' : ''}${open ? ' swiped' : ''}`}
@@ -681,7 +680,7 @@ const App = () => {
                             }}
                             onTouchEnd={e => {
                               const dx = e.changedTouches[0].clientX - touchStartX.current;
-                              if (dx < -60) setSwipedIntakeId(item.id);
+                              if (dx < -40) setSwipedIntakeId(item.id);
                               else if (dx > 30) setSwipedIntakeId(null);
                             }}
                           >
