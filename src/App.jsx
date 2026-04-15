@@ -652,6 +652,12 @@ const App = () => {
 
   const toggleIntakeDone = (id) => {
     setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
+    setSwipedIntakeId(null);
+  };
+
+  const closeSchedule = () => {
+    setIntakes(prev => prev.filter(i => !i.done));
+    setActiveTab('home');
   };
 
   const deleteIntake = (id) => {
@@ -764,7 +770,7 @@ const App = () => {
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
           </svg>
         </button>
-        <button className="nav-btn" onClick={() => setActiveTab(activeTab === 'schedule' ? 'home' : 'schedule')}>
+        <button className="nav-btn" onClick={() => activeTab === 'schedule' ? closeSchedule() : setActiveTab('schedule')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24">
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
@@ -780,7 +786,7 @@ const App = () => {
 
       {/* ── SCHEDULE SHEET ── */}
       {activeTab === 'schedule' && (
-        <div className="overlay" onClick={e => e.target === e.currentTarget && setActiveTab('home')}>
+        <div className="overlay" onClick={e => e.target === e.currentTarget && closeSchedule()}>
           <div className="sheet">
             {addIntakeOpen ? (
               <>
@@ -823,7 +829,7 @@ const App = () => {
               <>
                 <div className="sheet-header">
                   <h2>Прием лекарств</h2>
-                  <button className="close-btn" onClick={() => setActiveTab('home')}>×</button>
+                  <button className="close-btn" onClick={closeSchedule}>×</button>
                 </div>
 
                 <button className="primary-btn" onClick={() => setAddIntakeOpen(true)} style={{ marginBottom: 16 }}>

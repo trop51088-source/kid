@@ -639,7 +639,11 @@ button.pharm-card:active { background: #f0f0f0; }
 }
 .intake-card.intake-done {
   background: #f0f0f0;
-  opacity: 0.7;
+  opacity: 0.5;
+  pointer-events: none;
+}
+.intake-row:has(.intake-done) .del-btn {
+  display: none;
 }
 
 .intake-info { display: flex; flex-direction: column; gap: 2px; }
