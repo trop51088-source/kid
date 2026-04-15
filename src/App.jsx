@@ -2,8 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDWobakstAyjx-rTGJupLDgDZ_Jzkfv0xc",
@@ -78,201 +76,120 @@ const SearchIcon = () => (
 );
 
 const PharmacySheet = ({ onClose }) => {
-  const [query, setQuery]               = useState('');
-  const [searchedQuery, setSearchedQuery] = useState('');
-  const [pharmacies, setPharmacies]     = useState([]);
-  const [busy, setBusy]                 = useState(false);
-  const [msg, setMsg]                   = useState('');
-  const [userCoords, setUserCoords]     = useState(null);
+  const [query, setQuery]           = useState('');
+  const [pharmacies, setPharmacies] = useState([]);
+  const [busy, setBusy]             = useState(false);
+  const [msg, setMsg]               = useState('');
+  const [userCoords, setUserCoords] = useState(null);
 
-  const mapRef       = useRef(null);
-  const leafletRef   = useRef(null);
-  const markersRef   = useRef([]);
-  const userMarkRef  = useRef(null);
+  const mapRef  = useRef(null);
+  const ymapRef = useRef(null);
 
-  // ── Определяем сайт аптечной сети по названию (если нет в OSM) ──
-  const resolveWebsite = (name, osmUrl) => {
-    if (osmUrl) return osmUrl;
-    const n = (name || '').toLowerCase();
-    if (n.includes('ригла'))                           return 'https://www.rigla.ru';
-    if (n.includes('горздрав'))                        return 'https://gorzdrav.org';
-    if (n.includes('36.6') || n.includes('36,6') || n.includes('366')) return 'https://366.ru';
-    if (n.includes('планета здоровья'))                return 'https://www.planetazdorovo.ru';
-    if (n.includes('асна'))                            return 'https://www.asna.ru';
-    if (n.includes('здравсити') || n.includes('zdravcity')) return 'https://zdravcity.ru';
-    if (n.includes('еаптека') || n.includes('eapteka')) return 'https://www.eapteka.ru';
-    if (n.includes('максавит'))                        return 'https://www.maksavit.ru';
-    if (n.includes('озерки'))                          return 'https://www.ozerki.ru';
-    if (n.includes('вита') && !n.includes('витамин'))  return 'https://www.vitapharm.ru';
-    return null;
-  };
-
-  // ── Ссылка на поиск лекарства на сайте аптеки ──
-  const buildSearchUrl = (website, medicine) => {
-    if (!medicine || !medicine.trim()) return website;
-    const enc = encodeURIComponent(medicine.trim());
-    const patterns = {
-      'rigla.ru':          `/search?query=${enc}`,
-      'gorzdrav.org':      `/catalog/?q=${enc}`,
-      '366.ru':            `/search/?q=${enc}`,
-      'planetazdorovo.ru': `/search/?q=${enc}`,
-      'asna.ru':           `/catalog/search/?q=${enc}`,
-      'zdravcity.ru':      `/search/?q=${enc}`,
-      'eapteka.ru':        `/search/?q=${enc}`,
-      'apteka.ru':         `/search/?q=${enc}`,
-      'maksavit.ru':       `/search/?q=${enc}`,
-      'vitapharm.ru':      `/search?q=${enc}`,
-      'ozerki.ru':         `/search?q=${enc}`,
-    };
-    try {
-      const base = website.startsWith('http') ? website : `https://${website}`;
-      const u = new URL(base);
-      const d = u.hostname.replace(/^www\./, '');
-      for (const [k, path] of Object.entries(patterns)) {
-        if (d === k || d.endsWith(`.${k}`)) return `${u.origin}${path}`;
-      }
-      u.searchParams.set('q', medicine.trim());
-      return u.toString();
-    } catch {
-      const base = website.startsWith('http') ? website : `https://${website}`;
-      return `${base}?q=${enc}`;
-    }
-  };
-
-  // ── Очистка маркеров с карты (безопасно) ──
-  const clearMarkers = () => {
-    markersRef.current.forEach(m => { try { m.remove(); } catch {} });
-    markersRef.current = [];
-    if (userMarkRef.current) { try { userMarkRef.current.remove(); } catch {} }
-    userMarkRef.current = null;
-  };
-
-  // ── Рисуем маркеры на карте и возвращаем список аптек ──
-  const renderOnMap = (elements, lat, lon) => {
-    if (!leafletRef.current) return [];
-    clearMarkers();
-
-    const userIcon = L.divIcon({
-      html: '<div style="width:16px;height:16px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)"></div>',
-      className: '', iconSize: [16, 16], iconAnchor: [8, 8],
-    });
-    userMarkRef.current = L.marker([lat, lon], { icon: userIcon })
-      .bindPopup('<b>Вы здесь</b>')
-      .addTo(leafletRef.current);
-
+  // ── Парсинг результатов API → массив аптек ──
+  const parseFeatures = useCallback((data, map, userMark) => {
+    map.geoObjects.removeAll();
+    if (userMark) map.geoObjects.add(userMark);
     const items = [];
-    elements.forEach(el => {
-      const eLat = el.type === 'node' ? el.lat : el.center?.lat;
-      const eLon = el.type === 'node' ? el.lon : el.center?.lon;
-      if (!eLat || !eLon) return;
-      const name    = el.tags?.name || 'Аптека';
-      const street  = el.tags?.['addr:street'] || '';
-      const house   = el.tags?.['addr:housenumber'] || '';
-      const address = [street, house].filter(Boolean).join(', ');
-      const website = resolveWebsite(name, el.tags?.website || el.tags?.url);
-      items.push({ name, address, coords: [eLat, eLon], website });
-
-      const pharmIcon = L.divIcon({
-        html: '<div style="width:14px;height:14px;border-radius:50%;background:#EF4444;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>',
-        className: '', iconSize: [14, 14], iconAnchor: [7, 7],
-      });
-      const m = L.marker([eLat, eLon], { icon: pharmIcon })
-        .bindPopup(`<b>${name}</b>${address ? `<br><span style="font-size:12px">${address}</span>` : ''}`)
-        .addTo(leafletRef.current);
-      markersRef.current.push(m);
+    (data.features || []).forEach(f => {
+      const [lon, lat] = f.geometry.coordinates;
+      const name    = f.properties.name || 'Аптека';
+      const address = f.properties.description || '';
+      const meta    = f.properties.CompanyMetaData || {};
+      const website = meta.url || null;
+      items.push({ name, address, coords: [lat, lon], website });
+      map.geoObjects.add(new window.ymaps.Placemark(
+        [lat, lon],
+        { balloonContentHeader: name, balloonContentBody: address, hintContent: name },
+        { preset: 'islands#redMedicalIcon' }
+      ));
     });
-
-    items.sort((a, b) =>
-      haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1])
-    );
-
-    if (items.length > 0) {
-      const allLats = [lat, ...items.map(i => i.coords[0])];
-      const allLons = [lon, ...items.map(i => i.coords[1])];
-      leafletRef.current.fitBounds(
-        [[Math.min(...allLats), Math.min(...allLons)], [Math.max(...allLats), Math.max(...allLons)]],
-        { padding: [40, 40] }
-      );
-    } else {
-      leafletRef.current.setView([lat, lon], 15);
-    }
     return items;
-  };
+  }, []);
 
-  // ── Запрос аптек через Overpass API ──
-  const fetchNearby = async (lat, lon) => {
-    const q = `[out:json][timeout:15];(node["amenity"="pharmacy"](around:3000,${lat},${lon});way["amenity"="pharmacy"](around:3000,${lat},${lon}););out center;`;
-    const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    return data.elements || [];
-  };
+  // ── Запрос к серверному прокси ──
+  const fetchPharmacies = useCallback((center, searchText, userMark = null) => {
+    const ll  = `${center[1]},${center[0]}`;
+    const spn = searchText !== 'аптека' ? '0.5,0.5' : '0.2,0.2';
+    const url = `/api/pharmacy-search?ll=${ll}&text=${encodeURIComponent(searchText)}&spn=${spn}`;
+    return fetch(url)
+      .then(r => r.json())
+      .then(data => parseFeatures(data, ymapRef.current, userMark));
+  }, [parseFeatures]);
 
-  // ── Геолокация → загрузка аптек ──
-  const geolocate = () => {
+  // ── Геолокация ──
+  const geolocate = useCallback((searchText = 'аптека') => {
     if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
     setBusy(true); setMsg('');
     navigator.geolocation.getCurrentPosition(
       ({ coords: { latitude: lat, longitude: lon } }) => {
         setUserCoords({ lat, lon });
-        fetchNearby(lat, lon)
-          .then(els => {
-            const items = renderOnMap(els, lat, lon);
-            setPharmacies(items);
-            if (!items.length) setMsg('Аптеки рядом не найдены.');
-          })
-          .catch(() => setMsg('Ошибка загрузки аптек.'))
-          .finally(() => setBusy(false));
+        if (!ymapRef.current || !window.ymaps) { setBusy(false); return; }
+        window.ymaps.ready(() => {
+          ymapRef.current.setCenter([lat, lon], 14);
+          const userMark = new window.ymaps.Placemark(
+            [lat, lon],
+            { hintContent: 'Вы здесь', balloonContent: 'Вы здесь' },
+            { preset: 'islands#blueCircleDotIcon' }
+          );
+          fetchPharmacies([lat, lon], searchText, userMark)
+            .then(items => {
+              setPharmacies(items);
+              if (!items.length) setMsg('Аптеки рядом не найдены.');
+            })
+            .catch(() => setMsg('Ошибка поиска аптек.'))
+            .finally(() => setBusy(false));
+        });
       },
       () => { setMsg('Нет доступа к местоположению.'); setBusy(false); }
     );
-  };
+  }, [fetchPharmacies]);
 
-  // ── Инициализация карты Leaflet (npm-пакет, без window.L) ──
+  // ── Инициализация карты + автогеолокация ──
   useEffect(() => {
-    if (!mapRef.current || leafletRef.current) return;
-    // Чистим контейнер от предыдущего монтирования (React StrictMode)
-    if (mapRef.current._leaflet_id !== undefined) {
-      delete mapRef.current._leaflet_id;
-    }
-    const map = L.map(mapRef.current, { zoomControl: true })
-      .setView([55.7558, 37.6173], 12);
-    // Карты Esri World Street Map (другая компания, хорошее покрытие России)
-    L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-      { attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors', maxZoom: 18 }
-    ).addTo(map);
-    leafletRef.current = map;
-    geolocate();
+    let cancelled = false;
+    const tryInit = () => {
+      if (cancelled || !mapRef.current || ymapRef.current) return;
+      if (!window.ymaps) { setTimeout(tryInit, 250); return; }
+      window.ymaps.ready(() => {
+        if (cancelled || !mapRef.current || ymapRef.current) return;
+        ymapRef.current = new window.ymaps.Map(mapRef.current, {
+          center: [55.7558, 37.6173], zoom: 12, controls: ['zoomControl'],
+        });
+        if (!cancelled) geolocate('аптека');
+      });
+    };
+    setTimeout(tryInit, 150);
     return () => {
-      if (leafletRef.current) { leafletRef.current.remove(); leafletRef.current = null; }
-      markersRef.current = [];
-      userMarkRef.current = null;
+      cancelled = true;
+      if (ymapRef.current) { ymapRef.current.destroy(); ymapRef.current = null; }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Кнопка «Найти» ──
+  // ── Поиск аптек с лекарством ──
   const handleSearch = () => {
     const q = query.trim();
-    setSearchedQuery(q);
+    const searchText = q ? `аптека ${q}` : 'аптека';
     if (userCoords) {
       setBusy(true); setMsg('');
-      fetchNearby(userCoords.lat, userCoords.lon)
-        .then(els => {
-          const items = renderOnMap(els, userCoords.lat, userCoords.lon);
+      fetchPharmacies([userCoords.lat, userCoords.lon], searchText)
+        .then(items => {
           setPharmacies(items);
-          if (!items.length) setMsg('Аптеки рядом не найдены.');
+          if (!items.length) setMsg(q ? `Аптеки с "${q}" не найдены.` : 'Аптеки не найдены.');
         })
-        .catch(() => setMsg('Ошибка загрузки аптек.'))
+        .catch(() => setMsg('Ошибка поиска.'))
         .finally(() => setBusy(false));
     } else {
-      geolocate();
+      geolocate(searchText);
     }
   };
 
   const focusOnPharmacy = (item) => {
-    if (!leafletRef.current) return;
-    leafletRef.current.setView(item.coords, 17);
+    if (!ymapRef.current) return;
+    ymapRef.current.setCenter(item.coords, 16);
   };
+
+  const normalizeUrl = (url) =>
+    url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -298,7 +215,7 @@ const PharmacySheet = ({ onClose }) => {
         </div>
 
         {/* ── Кнопка геолокации ── */}
-        <button className="geo-btn" onClick={() => { setSearchedQuery(query.trim()); geolocate(); }} disabled={busy}>
+        <button className="geo-btn" onClick={() => geolocate(query.trim() ? `аптека ${query.trim()}` : 'аптека')} disabled={busy}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
             <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9"/>
           </svg>
@@ -330,12 +247,12 @@ const PharmacySheet = ({ onClose }) => {
                   {item.address && <span className="pharm-desc">{item.address}</span>}
                   {item.website && (
                     <a
-                      href={buildSearchUrl(item.website, searchedQuery)}
+                      href={normalizeUrl(item.website)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="pharm-website-btn"
                     >
-                      {searchedQuery ? `Найти «${searchedQuery}»` : 'Перейти на сайт'}
+                      Перейти на сайт
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                         <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
                       </svg>

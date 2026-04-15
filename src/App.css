@@ -528,15 +528,8 @@ body {
   overflow: hidden;
   background: #dde8f0;
   margin-bottom: 14px;
+  touch-action: none;
   z-index: 0;
-  position: relative;
-}
-
-/* Leaflet внутри скруглённого контейнера */
-.map-container .leaflet-container {
-  width: 100%;
-  height: 100%;
-  border-radius: 16px;
 }
 
 /* ── PHARMACY RESULTS ── */
