@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDWobakstAyjx-rTGJupLDgDZ_Jzkfv0xc",
@@ -146,12 +148,10 @@ const PharmacySheet = ({ onClose }) => {
   };
 
   // ── Рисуем маркеры на карте и возвращаем список аптек ──
-  const renderOnMap = useCallback((elements, lat, lon) => {
-    if (!leafletRef.current || !window.L) return [];
-    const L = window.L;
+  const renderOnMap = (elements, lat, lon) => {
+    if (!leafletRef.current) return [];
     clearMarkers();
 
-    // Маркер пользователя (синий)
     const userIcon = L.divIcon({
       html: '<div style="width:16px;height:16px;border-radius:50%;background:#3B82F6;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45)"></div>',
       className: '', iconSize: [16, 16], iconAnchor: [8, 8],
@@ -172,7 +172,6 @@ const PharmacySheet = ({ onClose }) => {
       const website = resolveWebsite(name, el.tags?.website || el.tags?.url);
       items.push({ name, address, coords: [eLat, eLon], website });
 
-      // Маркер аптеки (красный крест)
       const pharmIcon = L.divIcon({
         html: '<div style="width:14px;height:14px;border-radius:50%;background:#EF4444;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4)"></div>',
         className: '', iconSize: [14, 14], iconAnchor: [7, 7],
@@ -183,10 +182,10 @@ const PharmacySheet = ({ onClose }) => {
       markersRef.current.push(m);
     });
 
-    // Сортируем по расстоянию от пользователя
-    items.sort((a, b) => haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1]));
+    items.sort((a, b) =>
+      haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1])
+    );
 
-    // Подстраиваем карту под все маркеры
     if (items.length > 0) {
       const allLats = [lat, ...items.map(i => i.coords[0])];
       const allLons = [lon, ...items.map(i => i.coords[1])];
@@ -198,18 +197,18 @@ const PharmacySheet = ({ onClose }) => {
       leafletRef.current.setView([lat, lon], 15);
     }
     return items;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  };
 
-  // ── Запрос аптек через Overpass API (OpenStreetMap) ──
-  const fetchNearby = useCallback(async (lat, lon) => {
+  // ── Запрос аптек через Overpass API ──
+  const fetchNearby = async (lat, lon) => {
     const q = `[out:json][timeout:15];(node["amenity"="pharmacy"](around:3000,${lat},${lon});way["amenity"="pharmacy"](around:3000,${lat},${lon}););out center;`;
     const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
     const data = await res.json();
     return data.elements || [];
-  }, []);
+  };
 
   // ── Геолокация → загрузка аптек ──
-  const geolocate = useCallback(() => {
+  const geolocate = () => {
     if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
     setBusy(true); setMsg('');
     navigator.geolocation.getCurrentPosition(
@@ -226,37 +225,26 @@ const PharmacySheet = ({ onClose }) => {
       },
       () => { setMsg('Нет доступа к местоположению.'); setBusy(false); }
     );
-  }, [fetchNearby, renderOnMap]);
+  };
 
-  // ── Инициализация карты Leaflet ──
+  // ── Инициализация карты Leaflet (npm-пакет, без window.L) ──
   useEffect(() => {
-    let cancelled = false;
-    const init = () => {
-      if (cancelled || !mapRef.current || leafletRef.current) return;
-      if (!window.L) { setTimeout(init, 150); return; }
-      const L = window.L;
-      // Убираем остатки Leaflet от предыдущего монтирования (React StrictMode)
-      if (mapRef.current._leaflet_id) {
-        try { L.map(mapRef.current).remove(); } catch {}
-        delete mapRef.current._leaflet_id;
-      }
-      try {
-        leafletRef.current = L.map(mapRef.current, { zoomControl: true })
-          .setView([55.7558, 37.6173], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
-          maxZoom: 19,
-        }).addTo(leafletRef.current);
-        if (!cancelled) geolocate();
-      } catch (e) {
-        console.error('Leaflet init error:', e);
-      }
-    };
-    setTimeout(init, 100);
+    if (!mapRef.current || leafletRef.current) return;
+    // Чистим контейнер от предыдущего монтирования (React StrictMode)
+    if (mapRef.current._leaflet_id !== undefined) {
+      delete mapRef.current._leaflet_id;
+    }
+    const map = L.map(mapRef.current, { zoomControl: true })
+      .setView([55.7558, 37.6173], 12);
+    // Карты Esri World Street Map (другая компания, хорошее покрытие России)
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      { attribution: '© Esri, HERE, Garmin, OpenStreetMap contributors', maxZoom: 18 }
+    ).addTo(map);
+    leafletRef.current = map;
+    geolocate();
     return () => {
-      cancelled = true;
-      // Сначала убираем карту (она сама удалит все слои), потом сбрасываем ссылки
-      if (leafletRef.current) { try { leafletRef.current.remove(); } catch {} leafletRef.current = null; }
+      if (leafletRef.current) { leafletRef.current.remove(); leafletRef.current = null; }
       markersRef.current = [];
       userMarkRef.current = null;
     };
