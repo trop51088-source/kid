@@ -182,6 +182,9 @@ const PharmacySheet = ({ onClose }) => {
       markersRef.current.push(m);
     });
 
+    // Сортируем по расстоянию от пользователя
+    items.sort((a, b) => haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1]));
+
     // Подстраиваем карту под все маркеры
     if (items.length > 0) {
       const allLats = [lat, ...items.map(i => i.coords[0])];
@@ -233,8 +236,8 @@ const PharmacySheet = ({ onClose }) => {
       const L = window.L;
       leafletRef.current = L.map(mapRef.current, { zoomControl: true })
         .setView([55.7558, 37.6173], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
         maxZoom: 19,
       }).addTo(leafletRef.current);
       if (!cancelled) geolocate();
