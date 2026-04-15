@@ -137,11 +137,12 @@ const PharmacySheet = ({ onClose }) => {
     }
   };
 
-  // ── Очистка маркеров с карты ──
+  // ── Очистка маркеров с карты (безопасно) ──
   const clearMarkers = () => {
-    markersRef.current.forEach(m => m.remove());
+    markersRef.current.forEach(m => { try { m.remove(); } catch {} });
     markersRef.current = [];
-    if (userMarkRef.current) { userMarkRef.current.remove(); userMarkRef.current = null; }
+    if (userMarkRef.current) { try { userMarkRef.current.remove(); } catch {} }
+    userMarkRef.current = null;
   };
 
   // ── Рисуем маркеры на карте и возвращаем список аптек ──
@@ -234,19 +235,30 @@ const PharmacySheet = ({ onClose }) => {
       if (cancelled || !mapRef.current || leafletRef.current) return;
       if (!window.L) { setTimeout(init, 150); return; }
       const L = window.L;
-      leafletRef.current = L.map(mapRef.current, { zoomControl: true })
-        .setView([55.7558, 37.6173], 12);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
-        maxZoom: 19,
-      }).addTo(leafletRef.current);
-      if (!cancelled) geolocate();
+      // Убираем остатки Leaflet от предыдущего монтирования (React StrictMode)
+      if (mapRef.current._leaflet_id) {
+        try { L.map(mapRef.current).remove(); } catch {}
+        delete mapRef.current._leaflet_id;
+      }
+      try {
+        leafletRef.current = L.map(mapRef.current, { zoomControl: true })
+          .setView([55.7558, 37.6173], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+          maxZoom: 19,
+        }).addTo(leafletRef.current);
+        if (!cancelled) geolocate();
+      } catch (e) {
+        console.error('Leaflet init error:', e);
+      }
     };
     setTimeout(init, 100);
     return () => {
       cancelled = true;
-      clearMarkers();
-      if (leafletRef.current) { leafletRef.current.remove(); leafletRef.current = null; }
+      // Сначала убираем карту (она сама удалит все слои), потом сбрасываем ссылки
+      if (leafletRef.current) { try { leafletRef.current.remove(); } catch {} leafletRef.current = null; }
+      markersRef.current = [];
+      userMarkRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
