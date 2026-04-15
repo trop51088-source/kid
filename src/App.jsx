@@ -329,9 +329,24 @@ const AuthScreen = ({ onAuth }) => {
   return (
     <div className="auth-screen">
       <div className="auth-logo">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="72" height="72">
-          <path d="M20 6h-2.18c.07-.44.18-.87.18-1.33C18 2.09 15.91 0 13.33 0c-1.4 0-2.5.59-3.33 1.5C9.17.59 8.07 0 6.67 0 4.09 0 2 2.09 2 4.67c0 .46.11.89.18 1.33H0v14a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zM9 18H7v-2h2v2zm0-4H7v-6h2v6zm4 4h-2v-2h2v2zm0-4h-2v-6h2v6zm4 4h-2v-2h2v2zm0-4h-2v-6h2v6z"/>
-        </svg>
+        <div className="auth-icon-wrap">
+          <svg viewBox="0 0 80 80" fill="none" width="96" height="96">
+            {/* Корпус аптечки */}
+            <rect x="8" y="18" width="64" height="50" rx="10" fill="#fff"/>
+            <rect x="8" y="18" width="64" height="50" rx="10" stroke="#e0e8f0" strokeWidth="2"/>
+            {/* Крышка */}
+            <rect x="14" y="10" width="52" height="14" rx="6" fill="#D0E8FF"/>
+            <rect x="14" y="10" width="52" height="14" rx="6" stroke="#A8CBE8" strokeWidth="1.5"/>
+            {/* Замок / петля */}
+            <rect x="33" y="7" width="14" height="8" rx="4" fill="#A8CBE8"/>
+            {/* Красный крест — вертикаль */}
+            <rect x="36" y="31" width="8" height="24" rx="4" fill="#ef4444"/>
+            {/* Красный крест — горизонталь */}
+            <rect x="28" y="39" width="24" height="8" rx="4" fill="#ef4444"/>
+            {/* Блик на корпусе */}
+            <rect x="16" y="24" width="20" height="3" rx="1.5" fill="rgba(255,255,255,0.6)"/>
+          </svg>
+        </div>
         <span className="auth-app-name">МОЯ АПТЕЧКА</span>
       </div>
 
