@@ -76,14 +76,48 @@ const SearchIcon = () => (
 );
 
 const PharmacySheet = ({ onClose }) => {
-  const [query, setQuery]           = useState('');
-  const [pharmacies, setPharmacies] = useState([]);
-  const [busy, setBusy]             = useState(false);
-  const [msg, setMsg]               = useState('');
-  const [userCoords, setUserCoords] = useState(null);
+  const [query, setQuery]               = useState('');
+  const [searchedQuery, setSearchedQuery] = useState('');
+  const [pharmacies, setPharmacies]     = useState([]);
+  const [busy, setBusy]                 = useState(false);
+  const [msg, setMsg]                   = useState('');
+  const [userCoords, setUserCoords]     = useState(null);
 
   const mapRef  = useRef(null);
   const ymapRef = useRef(null);
+
+  // ── Строим ссылку на поиск лекарства на сайте аптеки ──
+  const buildPharmacySearchUrl = (website, medicineName) => {
+    if (!website) return null;
+    const base = website.startsWith('http') ? website : `https://${website}`;
+    if (!medicineName || !medicineName.trim()) return base;
+    const encoded = encodeURIComponent(medicineName.trim());
+    const knownPatterns = {
+      'apteka.ru':          `/search/?q=${encoded}`,
+      'eapteka.ru':         `/search/?q=${encoded}`,
+      'gorzdrav.org':       `/catalog/?q=${encoded}`,
+      'zdravcity.ru':       `/search/?q=${encoded}`,
+      'asna.ru':            `/catalog/search/?q=${encoded}`,
+      'rigla.ru':           `/search?query=${encoded}`,
+      'planetazdorovo.ru':  `/search/?q=${encoded}`,
+      '366.ru':             `/search/?q=${encoded}`,
+      'piluli.ru':          `/search/?q=${encoded}`,
+      'apteka24.ru':        `/search/?q=${encoded}`,
+    };
+    try {
+      const urlObj = new URL(base);
+      const domain = urlObj.hostname.replace(/^www\./, '');
+      for (const [knownDomain, path] of Object.entries(knownPatterns)) {
+        if (domain === knownDomain || domain.endsWith(`.${knownDomain}`)) {
+          return `${urlObj.origin}${path}`;
+        }
+      }
+      urlObj.searchParams.set('q', medicineName.trim());
+      return urlObj.toString();
+    } catch {
+      return `${base}?q=${encoded}`;
+    }
+  };
 
   // ── Парсинг результатов API → массив аптек ──
   const parseFeatures = useCallback((data, map, userMark) => {
@@ -103,6 +137,20 @@ const PharmacySheet = ({ onClose }) => {
         { preset: 'islands#redMedicalIcon' }
       ));
     });
+    // Подстраиваем карту под все маркеры, чтобы аптеки были видны
+    if (items.length > 0) {
+      const lats = items.map(i => i.coords[0]);
+      const lons = items.map(i => i.coords[1]);
+      if (userMark) {
+        const [uLat, uLon] = userMark.geometry.getCoordinates();
+        lats.push(uLat); lons.push(uLon);
+      }
+      const bounds = [
+        [Math.min(...lats) - 0.003, Math.min(...lons) - 0.003],
+        [Math.max(...lats) + 0.003, Math.max(...lons) + 0.003],
+      ];
+      map.setBounds(bounds, { checkZoomRange: true, zoomMargin: 40 });
+    }
     return items;
   }, []);
 
@@ -168,10 +216,16 @@ const PharmacySheet = ({ onClose }) => {
   // ── Поиск аптек с лекарством ──
   const handleSearch = () => {
     const q = query.trim();
+    setSearchedQuery(q);
     const searchText = q ? `аптека ${q}` : 'аптека';
     if (userCoords) {
       setBusy(true); setMsg('');
-      fetchPharmacies([userCoords.lat, userCoords.lon], searchText)
+      const userMark = window.ymaps ? new window.ymaps.Placemark(
+        [userCoords.lat, userCoords.lon],
+        { hintContent: 'Вы здесь', balloonContent: 'Вы здесь' },
+        { preset: 'islands#blueCircleDotIcon' }
+      ) : null;
+      fetchPharmacies([userCoords.lat, userCoords.lon], searchText, userMark)
         .then(items => {
           setPharmacies(items);
           if (!items.length) setMsg(q ? `Аптеки с "${q}" не найдены.` : 'Аптеки не найдены.');
@@ -215,7 +269,7 @@ const PharmacySheet = ({ onClose }) => {
         </div>
 
         {/* ── Кнопка геолокации ── */}
-        <button className="geo-btn" onClick={() => geolocate(query.trim() ? `аптека ${query.trim()}` : 'аптека')} disabled={busy}>
+        <button className="geo-btn" onClick={() => { const q = query.trim(); setSearchedQuery(q); geolocate(q ? `аптека ${q}` : 'аптека'); }} disabled={busy}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
             <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9"/>
           </svg>
@@ -247,12 +301,12 @@ const PharmacySheet = ({ onClose }) => {
                   {item.address && <span className="pharm-desc">{item.address}</span>}
                   {item.website && (
                     <a
-                      href={normalizeUrl(item.website)}
+                      href={buildPharmacySearchUrl(item.website, searchedQuery)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="pharm-website-btn"
                     >
-                      Перейти на сайт
+                      {searchedQuery ? `Найти «${searchedQuery}»` : 'Перейти на сайт'}
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
                         <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
                       </svg>
