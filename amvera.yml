@@ -1,9 +1,15 @@
 meta:
   environment: nodejs
-  toolVersion: npm
-  version: 20
+  toolchain:
+    name: npm
+    version: "20"
 build:
-  npmBuildCommand: run build
+  skip: false
+  additionalCommands: npm run build
+  artifacts:
+    "*": /
 run:
   command: npx serve -s dist -l 80
-  containerPort: 80
+  persistenceMount: /data
+  containerPort: "80"
+  servicePort: "80"
