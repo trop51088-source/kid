@@ -1,0 +1,9 @@
+meta:
+  environment: nodejs
+  toolVersion: npm
+  version: 20
+build:
+  npmBuildCommand: run build
+run:
+  command: npx serve -s dist -l 80
+  containerPort: 80
