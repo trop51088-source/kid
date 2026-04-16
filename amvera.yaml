@@ -1,0 +1,12 @@
+meta:
+  environment: nodejs
+  toolchain:
+    name: node
+    version: "20"
+
+build:
+  dockerfile: false
+  buildCommand: npm run build
+
+run:
+  command: npx serve -s dist -l 3000
