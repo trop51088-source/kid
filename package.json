@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.103.3",
     "@vitejs/plugin-react-swc": "^3.5.0",
     "@zxing/library": "^0.21.3",
     "firebase": "^10.14.1",
