@@ -343,19 +343,24 @@ const App = () => {
   }, []);
 
   const loadUserData = async (uid) => {
-    const [{ data: prof }, { data: meds }, { data: ints }] = await Promise.all([
-      supabase.from('profiles').select('*').eq('user_id', uid).single(),
-      supabase.from('medicines').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-      supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-    ]);
-    if (prof) {
-      setProfile({ name: prof.name || '', allergy: prof.allergy || '' });
-      setAuthStep('done');
-    } else {
+    try {
+      const [{ data: prof, error: profError }, { data: meds }, { data: ints }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', uid).maybeSingle(),
+        supabase.from('medicines').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+      ]);
+      if (prof) {
+        setProfile({ name: prof.name || '', allergy: prof.allergy || '' });
+        setAuthStep('done');
+      } else {
+        setAuthStep('onboarding');
+      }
+      setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date, quantity: m.quantity })));
+      setIntakes((ints || []).map(i => ({ id: i.id, name: i.name, time: i.time, qty: i.qty, done: i.done })));
+    } catch (e) {
+      console.error('loadUserData error:', e);
       setAuthStep('onboarding');
     }
-    setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date, quantity: m.quantity })));
-    setIntakes((ints || []).map(i => ({ id: i.id, name: i.name, time: i.time, qty: i.qty, done: i.done })));
   };
 
   const saveProfileToSupabase = async (uid, data) => {
