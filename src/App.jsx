@@ -330,7 +330,6 @@ const App = () => {
   const touchStartX = useRef(null);
 
   useEffect(() => {
-    localStorage.clear();
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setFirebaseUser(user);
