@@ -4,15 +4,11 @@ import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/
 
 import { createClient } from '@supabase/supabase-js';
 
-const firebaseConfig = {
   apiKey: "AIzaSyDWobakstAyjx-rTGJupLDgDZ_Jzkfv0xc",
-  authDomain: "kidpill.firebaseapp.com",
   projectId: "kidpill",
-  storageBucket: "kidpill.firebasestorage.app",
   messagingSenderId: "228749438184",
   appId: "1:228749438184:web:7d08dfc0f83e3942d72d5d",
 };
-const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 const supabase = createClient(
@@ -231,8 +227,11 @@ const AuthScreen = ({ onAuth }) => {
     setLoading(true);
     setError('');
     try {
-      const result = await signInWithPopup(auth, new GoogleAuthProvider());
-      onAuth(result.user);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
     } catch (e) {
       setError('Ошибка входа: ' + e.message);
     } finally {
@@ -294,7 +293,6 @@ const OnboardingScreen = ({ onDone }) => {
 };
 
 const App = () => {
-  const [firebaseUser, setFirebaseUser] = useState(null);
   const [authStep, setAuthStep] = useState('loading');
   const [activeTab, setActiveTab] = useState('home');
   const [medicines, setMedicines] = useState([]);
@@ -332,10 +330,8 @@ const App = () => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setFirebaseUser(user);
         await loadUserData(user.uid);
       } else {
-        setFirebaseUser(null);
         setAuthStep('login');
       }
     });
@@ -378,7 +374,6 @@ const App = () => {
     const updated = { name: profileName, allergy: profileAllergy };
     setProfile(updated);
     setProfileEdit(false);
-    if (firebaseUser) await saveProfileToSupabase(firebaseUser.uid, updated);
   };
 
   const handleAvatarChange = (e) => {
@@ -397,8 +392,6 @@ const App = () => {
     const newMed = { id, name: manualName.trim(), expDate: manualExp || null, quantity: manualQty };
     setMedicines(prev => [newMed, ...prev]);
     setManualOpen(false);
-    if (firebaseUser) {
-      await supabase.from('medicines').insert({ id, user_id: firebaseUser.uid, name: newMed.name, exp_date: newMed.expDate, quantity: newMed.quantity });
     }
   };
 
@@ -476,8 +469,6 @@ const App = () => {
     };
     setMedicines(prev => [newMed, ...prev]);
     closeScanner();
-    if (firebaseUser) {
-      await supabase.from('medicines').insert({ id, user_id: firebaseUser.uid, name: newMed.name, exp_date: newMed.expDate, quantity: newMed.quantity });
     }
   };
 
@@ -494,7 +485,6 @@ const App = () => {
     setTimeout(async () => {
       setMedicines(prev => prev.filter(m => m.id !== id));
       setDeletingMeds(prev => { const s = new Set(prev); s.delete(id); return s; });
-      if (firebaseUser) await supabase.from('medicines').delete().eq('id', id).eq('user_id', firebaseUser.uid);
     }, 350);
   };
 
@@ -506,8 +496,6 @@ const App = () => {
     const newIntake = { id, name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false };
     setIntakes(prev => [newIntake, ...prev]);
     setIntakeName(''); setIntakeTime(''); setIntakeQty(1); setAddIntakeOpen(false);
-    if (firebaseUser) {
-      await supabase.from('intakes').insert({ id, user_id: firebaseUser.uid, name: newIntake.name, time: newIntake.time, qty: newIntake.qty, done: false });
     }
   };
 
@@ -515,8 +503,6 @@ const App = () => {
     setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
     setSwipedIntakeId(null);
     const intake = intakes.find(i => i.id === id);
-    if (firebaseUser && intake) {
-      await supabase.from('intakes').update({ done: !intake.done }).eq('id', id).eq('user_id', firebaseUser.uid);
     }
   };
 
@@ -524,8 +510,6 @@ const App = () => {
     const doneIds = intakes.filter(i => i.done).map(i => i.id);
     setIntakes(prev => prev.filter(i => !i.done));
     setActiveTab('home');
-    if (firebaseUser && doneIds.length) {
-      supabase.from('intakes').delete().in('id', doneIds).eq('user_id', firebaseUser.uid);
     }
   };
 
@@ -535,7 +519,6 @@ const App = () => {
     setTimeout(async () => {
       setIntakes(prev => prev.filter(i => i.id !== id));
       setDeletingIntakes(prev => { const s = new Set(prev); s.delete(id); return s; });
-      if (firebaseUser) await supabase.from('intakes').delete().eq('id', id).eq('user_id', firebaseUser.uid);
     }, 350);
   };
 
@@ -545,7 +528,6 @@ const App = () => {
 
   if (authStep === 'login') {
     return <AuthScreen onAuth={async (user) => {
-      setFirebaseUser(user);
       await loadUserData(user.uid);
     }} />;
   }
@@ -554,7 +536,6 @@ const App = () => {
     return <OnboardingScreen onDone={async (p) => {
       setProfile(p);
       setAuthStep('done');
-      if (firebaseUser) await saveProfileToSupabase(firebaseUser.uid, p);
     }} />;
   }
 
@@ -712,7 +693,6 @@ const App = () => {
                   <img src={avatar} alt="avatar" className="profile-avatar-img" />
                 ) : (
                   <span className="profile-avatar-initials">
-                    {(firebaseUser?.email?.[0] || profile.name?.[0] || '?').toUpperCase()}
                   </span>
                 )}
                 <div className="avatar-edit-badge">
@@ -728,7 +708,6 @@ const App = () => {
               </div>
             </div>
             <label className="field-label" style={{ marginTop: 16 }}>Email</label>
-            <div className="field-input profile-email">{firebaseUser?.email || 'Нет данных'}</div>
             <label className="field-label">Аллергия / Заболевания</label>
             <textarea className="field-input field-textarea" placeholder="" value={profileAllergy} onChange={e => setProfileAllergy(e.target.value)} readOnly={!profileEdit} />
             {profileEdit ? (
@@ -742,7 +721,6 @@ const App = () => {
                   </svg>
                   Редактировать
                 </button>
-                <button className="logout-btn" onClick={async () => { await signOut(auth); setFirebaseUser(null); setAuthStep('login'); }}>
                   Выйти
                 </button>
               </>
