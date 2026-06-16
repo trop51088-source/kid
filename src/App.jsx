@@ -85,32 +85,38 @@ const PharmacySheet = ({ onClose }) => {
   const mapRef = useRef(null);
   const ymapRef = useRef(null);
 
-  const parseFeatures = useCallback((data, map, userMark) => {
-    map.geoObjects.removeAll();
-    if (userMark) map.geoObjects.add(userMark);
-    const items = [];
-    (data.features || []).forEach(f => {
-      const [lon, lat] = f.geometry.coordinates;
-      const name = f.properties.name || 'Аптека';
-      const address = f.properties.description || '';
-      const meta = f.properties.CompanyMetaData || {};
-      const website = meta.url || null;
-      items.push({ name, address, coords: [lat, lon], website });
-      map.geoObjects.add(new window.ymaps.Placemark(
-        [lat, lon],
-        { balloonContentHeader: name, balloonContentBody: address, hintContent: name },
-        { preset: 'islands#redMedicalIcon' }
-      ));
-    });
-    return items;
-  }, []);
-
   const fetchPharmacies = useCallback((center, searchText, userMark = null) => {
-    const ll = `${center[1]},${center[0]}`;
-    const spn = searchText !== 'аптека' ? '0.5,0.5' : '0.2,0.2';
-    const url = `/api/pharmacy-search?ll=${ll}&text=${encodeURIComponent(searchText)}&spn=${spn}`;
-    return fetch(url).then(r => r.json()).then(data => parseFeatures(data, ymapRef.current, userMark));
-  }, [parseFeatures]);
+    const map = ymapRef.current;
+    const spn = searchText !== 'аптека' ? 0.5 : 0.2;
+    return new Promise((resolve, reject) => {
+      window.ymaps.search(searchText, {
+        boundedBy: [
+          [center[0] - spn, center[1] - spn],
+          [center[0] + spn, center[1] + spn],
+        ],
+        strictBounds: false,
+        results: 30,
+      }).then(res => {
+        map.geoObjects.removeAll();
+        if (userMark) map.geoObjects.add(userMark);
+        const items = [];
+        res.geoObjects.each(obj => {
+          const coords = obj.geometry.getCoordinates();
+          const name = obj.properties.get('name') || 'Аптека';
+          const address = obj.properties.get('description') || '';
+          const meta = obj.properties.get('metaDataProperty') || {};
+          const website = (meta.CompanyMetaData || {}).url || null;
+          items.push({ name, address, coords, website });
+          map.geoObjects.add(new window.ymaps.Placemark(
+            coords,
+            { balloonContentHeader: name, balloonContentBody: address, hintContent: name },
+            { preset: 'islands#redMedicalIcon' }
+          ));
+        });
+        resolve(items);
+      }).catch(reject);
+    });
+  }, []);
 
   const geolocate = useCallback((searchText = 'аптека') => {
     if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
@@ -328,14 +334,15 @@ const App = () => {
   const touchStartX = useRef(null);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        await loadUserData(user.uid);
-      } else {
-        setAuthStep('login');
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setSupabaseUser(session.user); loadUserData(session.user.id); }
+      else setAuthStep('login');
     });
-    return () => unsub();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session?.user) { setSupabaseUser(session.user); loadUserData(session.user.id); }
+      else { setSupabaseUser(null); setAuthStep('login'); }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const loadUserData = async (uid) => {
