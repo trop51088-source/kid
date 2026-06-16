@@ -4,13 +4,6 @@ import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/
 
 import { createClient } from '@supabase/supabase-js';
 
-  apiKey: "AIzaSyDWobakstAyjx-rTGJupLDgDZ_Jzkfv0xc",
-  projectId: "kidpill",
-  messagingSenderId: "228749438184",
-  appId: "1:228749438184:web:7d08dfc0f83e3942d72d5d",
-};
-const auth = getAuth(app);
-
 const supabase = createClient(
   'https://cidnwmmhwryhwpxbocwe.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpZG53bW1od3J5aHdweGJvY3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDg0NzQsImV4cCI6MjA5MDk4NDQ3NH0.Jh329ywjiTRWrHdmMlV53sJtkvOB1ce5abXTbC6IvQk'
