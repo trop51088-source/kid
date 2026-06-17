@@ -315,12 +315,12 @@ const App = () => {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setSupabaseUser(session.user); loadUserData(session.user.id); }
+      if (session?.user) { loadUserData(session.user.id); }
       else setAuthStep('login');
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) { setSupabaseUser(session.user); loadUserData(session.user.id); }
-      else { setSupabaseUser(null); setAuthStep('login'); }
+      if (session?.user) { loadUserData(session.user.id); }
+      else { setAuthStep('login'); }
     });
     return () => subscription.unsubscribe();
   }, []);
