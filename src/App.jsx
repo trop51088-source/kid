@@ -70,122 +70,109 @@ const SearchIcon = () => (
 );
 
 const PharmacySheet = ({ onClose }) => {
-  const [query, setQuery] = useState('');
   const [pharmacies, setPharmacies] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [userCoords, setUserCoords] = useState(null);
   const mapRef = useRef(null);
-  const ymapRef = useRef(null);
+  const leafletMapRef = useRef(null);
+  const markersRef = useRef([]);
 
-  const fetchPharmacies = useCallback((center, searchText, userMark = null) => {
-    const map = ymapRef.current;
-    const spn = searchText !== 'аптека' ? 0.5 : 0.2;
-    return new Promise((resolve, reject) => {
-      window.ymaps.search(searchText, {
-        boundedBy: [
-          [center[0] - spn, center[1] - spn],
-          [center[0] + spn, center[1] + spn],
-        ],
-        strictBounds: false,
-        results: 30,
-      }).then(res => {
-        map.geoObjects.removeAll();
-        if (userMark) map.geoObjects.add(userMark);
-        const items = [];
-        res.geoObjects.each(obj => {
-          const coords = obj.geometry.getCoordinates();
-          const name = obj.properties.get('name') || 'Аптека';
-          const address = obj.properties.get('description') || '';
-          const meta = obj.properties.get('metaDataProperty') || {};
-          const website = (meta.CompanyMetaData || {}).url || null;
-          items.push({ name, address, coords, website });
-          map.geoObjects.add(new window.ymaps.Placemark(
-            coords,
-            { balloonContentHeader: name, balloonContentBody: address, hintContent: name },
-            { preset: 'islands#redMedicalIcon' }
-          ));
-        });
-        resolve(items);
-      }).catch(reject);
-    });
+  const clearMarkers = useCallback(() => {
+    markersRef.current.forEach(m => m.remove());
+    markersRef.current = [];
   }, []);
 
-  const geolocate = useCallback((searchText = 'аптека') => {
+  const addMarker = useCallback((coords, html, popup) => {
+    const marker = window.L.marker(coords, {
+      icon: window.L.divIcon({ html, className: '', iconSize: [14, 14], iconAnchor: [7, 7] }),
+    }).bindPopup(popup);
+    marker.addTo(leafletMapRef.current);
+    markersRef.current.push(marker);
+    return marker;
+  }, []);
+
+  const geolocate = useCallback(async () => {
     if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
     setBusy(true); setMsg('');
     navigator.geolocation.getCurrentPosition(
-      ({ coords: { latitude: lat, longitude: lon } }) => {
+      async ({ coords: { latitude: lat, longitude: lon } }) => {
         setUserCoords({ lat, lon });
-        if (!ymapRef.current || !window.ymaps) { setBusy(false); return; }
-        window.ymaps.ready(() => {
-          ymapRef.current.setCenter([lat, lon], 14);
-          const userMark = new window.ymaps.Placemark(
-            [lat, lon],
-            { hintContent: 'Вы здесь', balloonContent: 'Вы здесь' },
-            { preset: 'islands#blueCircleDotIcon' }
-          );
-          fetchPharmacies([lat, lon], searchText, userMark)
-            .then(items => { setPharmacies(items); if (!items.length) setMsg('Аптеки рядом не найдены.'); })
-            .catch(() => setMsg('Ошибка поиска аптек.'))
-            .finally(() => setBusy(false));
-        });
+        const map = leafletMapRef.current;
+        if (!map) { setBusy(false); return; }
+        map.setView([lat, lon], 15);
+        clearMarkers();
+        addMarker([lat, lon],
+          `<div style="background:#3b82f6;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+          'Вы здесь'
+        );
+        try {
+          const q = `[out:json][timeout:25];node["amenity"="pharmacy"](around:2000,${lat},${lon});out body;`;
+          const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          const elements = data.elements || [];
+          const items = elements.map(el => {
+            const name = el.tags?.name || 'Аптека';
+            const street = el.tags?.['addr:street'] || '';
+            const house = el.tags?.['addr:housenumber'] || '';
+            const address = [street, house].filter(Boolean).join(', ');
+            const website = el.tags?.website || null;
+            const coords = [el.lat, el.lon];
+            addMarker(coords,
+              `<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+              `<b>${name}</b>${address ? '<br>' + address : ''}`
+            );
+            return { name, address, coords, website };
+          });
+          setPharmacies(items);
+          if (!items.length) setMsg('Аптеки в радиусе 2 км не найдены.');
+        } catch {
+          setMsg('Ошибка поиска аптек. Попробуйте позже.');
+        } finally {
+          setBusy(false);
+        }
       },
       () => { setMsg('Нет доступа к местоположению.'); setBusy(false); }
     );
-  }, [fetchPharmacies]);
+  }, [clearMarkers, addMarker]);
 
   useEffect(() => {
     let cancelled = false;
-    const tryInit = () => {
-      if (cancelled || !mapRef.current || ymapRef.current) return;
-      if (!window.ymaps) { setTimeout(tryInit, 250); return; }
-      window.ymaps.ready(() => {
-        if (cancelled || !mapRef.current || ymapRef.current) return;
-        ymapRef.current = new window.ymaps.Map(mapRef.current, { center: [55.7558, 37.6173], zoom: 12, controls: ['zoomControl'] });
-        if (!cancelled) geolocate('аптека');
-      });
+    const init = () => {
+      if (cancelled || !mapRef.current || leafletMapRef.current) return;
+      if (!window.L) { setTimeout(init, 200); return; }
+      leafletMapRef.current = window.L.map(mapRef.current).setView([55.7558, 37.6173], 12);
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19,
+      }).addTo(leafletMapRef.current);
+      if (!cancelled) geolocate();
     };
-    setTimeout(tryInit, 150);
+    setTimeout(init, 100);
     return () => {
       cancelled = true;
-      if (ymapRef.current) { ymapRef.current.destroy(); ymapRef.current = null; }
+      if (leafletMapRef.current) { leafletMapRef.current.remove(); leafletMapRef.current = null; }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = () => {
-    const q = query.trim();
-    const searchText = q ? `аптека ${q}` : 'аптека';
-    if (userCoords) {
-      setBusy(true); setMsg('');
-      fetchPharmacies([userCoords.lat, userCoords.lon], searchText)
-        .then(items => { setPharmacies(items); if (!items.length) setMsg(q ? `Аптеки с "${q}" не найдены.` : 'Аптеки не найдены.'); })
-        .catch(() => setMsg('Ошибка поиска.'))
-        .finally(() => setBusy(false));
-    } else { geolocate(searchText); }
-  };
-
-  const focusOnPharmacy = (item) => { if (ymapRef.current) ymapRef.current.setCenter(item.coords, 16); };
+  const focusOnPharmacy = (item) => { if (leafletMapRef.current) leafletMapRef.current.setView(item.coords, 17); };
   const normalizeUrl = (url) => url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="sheet">
         <div className="sheet-header">
-          <h2>Поиск аптек</h2>
+          <h2>Аптеки рядом</h2>
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
-        <div className="pharm-search-row">
-          <input className="field-input" style={{ marginBottom: 0, flex: 1 }} placeholder="Название лекарства" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} />
-          <button className="pharm-search-btn" onClick={handleSearch} disabled={busy}>
-            {busy ? <div className="spinner" style={{ width: 18, height: 18, borderWidth: 2 }} /> : <SearchIcon />}
-          </button>
-        </div>
-        <button className="geo-btn" onClick={() => geolocate(query.trim() ? `аптека ${query.trim()}` : 'аптека')} disabled={busy}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
-            <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9"/>
-          </svg>
-          Определить моё местоположение
+        <button className="geo-btn" onClick={geolocate} disabled={busy}>
+          {busy
+            ? <div className="spinner" style={{ width: 17, height: 17, borderWidth: 2 }} />
+            : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
+                <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9"/>
+              </svg>
+          }
+          {busy ? 'Поиск...' : 'Определить моё местоположение'}
         </button>
         {msg && <p className="pharm-status">{msg}</p>}
         <div className="map-container" ref={mapRef} />
