@@ -328,18 +328,20 @@ const App = () => {
 
   const loadUserData = async (uid) => {
     try {
-      const [{ data: prof, error: profError }, { data: meds }, { data: ints }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('user_id', uid).maybeSingle(),
-        supabase.from('medicines').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-        supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-      ]);
+      const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', uid).maybeSingle();
       if (prof) {
         setProfile({ name: prof.name || '', allergy: prof.allergy || '' });
         setAuthStep('done');
       } else {
         setAuthStep('onboarding');
       }
+
+      const { data: meds, error: medsError } = await supabase.from('medicines').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+      if (medsError) console.error('medicines load error:', medsError);
       setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date, quantity: m.quantity })));
+
+      const { data: ints, error: intsError } = await supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+      if (intsError) console.error('intakes load error:', intsError);
       setIntakes((ints || []).map(i => ({ id: i.id, name: i.name, time: i.time, qty: i.qty, done: i.done })));
     } catch (e) {
       console.error('loadUserData error:', e);
