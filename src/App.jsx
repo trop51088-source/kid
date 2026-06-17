@@ -75,88 +75,76 @@ const PharmacySheet = ({ onClose }) => {
   const [msg, setMsg] = useState('');
   const [userCoords, setUserCoords] = useState(null);
   const mapRef = useRef(null);
-  const leafletMapRef = useRef(null);
-  const markersRef = useRef([]);
+  const ymapRef = useRef(null);
 
-  const clearMarkers = useCallback(() => {
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-  }, []);
-
-  const addMarker = useCallback((coords, html, popup) => {
-    const marker = window.L.marker(coords, {
-      icon: window.L.divIcon({ html, className: '', iconSize: [14, 14], iconAnchor: [7, 7] }),
-    }).bindPopup(popup);
-    marker.addTo(leafletMapRef.current);
-    markersRef.current.push(marker);
-    return marker;
-  }, []);
-
-  const geolocate = useCallback(async () => {
+  const geolocate = useCallback(() => {
     if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
     setBusy(true); setMsg('');
     navigator.geolocation.getCurrentPosition(
-      async ({ coords: { latitude: lat, longitude: lon } }) => {
+      ({ coords: { latitude: lat, longitude: lon } }) => {
         setUserCoords({ lat, lon });
-        const map = leafletMapRef.current;
+        const map = ymapRef.current;
         if (!map) { setBusy(false); return; }
-        map.setView([lat, lon], 15);
-        clearMarkers();
-        addMarker([lat, lon],
-          `<div style="background:#3b82f6;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
-          'Вы здесь'
-        );
-        try {
-          const q = `[out:json][timeout:25];node["amenity"="pharmacy"](around:2000,${lat},${lon});out body;`;
-          const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
-          const data = await res.json();
-          const elements = data.elements || [];
-          const items = elements.map(el => {
-            const name = el.tags?.name || 'Аптека';
-            const street = el.tags?.['addr:street'] || '';
-            const house = el.tags?.['addr:housenumber'] || '';
-            const address = [street, house].filter(Boolean).join(', ');
-            const website = el.tags?.website || null;
-            const coords = [el.lat, el.lon];
-            addMarker(coords,
-              `<div style="background:#ef4444;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
-              `<b>${name}</b>${address ? '<br>' + address : ''}`
-            );
-            return { name, address, coords, website };
+        map.setCenter([lat, lon], 15);
+        map.geoObjects.removeAll();
+
+        // Маркер пользователя
+        map.geoObjects.add(new window.ymaps.Placemark([lat, lon], {
+          balloonContent: 'Вы здесь',
+        }, { preset: 'islands#blueCircleDotIcon' }));
+
+        // Поиск аптек рядом
+        const delta = 0.018;
+        window.ymaps.search('аптека', {
+          boundedBy: [[lat - delta, lon - delta * 1.5], [lat + delta, lon + delta * 1.5]],
+          strictBounds: false,
+          results: 30,
+        }).then((res) => {
+          const items = [];
+          res.geoObjects.each((obj) => {
+            const coords = obj.geometry.getCoordinates();
+            const name = obj.properties.get('name') || 'Аптека';
+            const address = obj.properties.get('description') || '';
+            map.geoObjects.add(new window.ymaps.Placemark(coords, {
+              balloonContent: `<b>${name}</b>${address ? '<br>' + address : ''}`,
+            }, { preset: 'islands#redMedicalIcon' }));
+            items.push({ name, address, coords });
           });
           setPharmacies(items);
-          if (!items.length) setMsg('Аптеки в радиусе 2 км не найдены.');
-        } catch {
-          setMsg('Ошибка поиска аптек. Попробуйте позже.');
-        } finally {
+          if (!items.length) setMsg('Аптеки рядом не найдены.');
           setBusy(false);
-        }
+        }).catch(() => {
+          setMsg('Ошибка поиска аптек. Попробуйте позже.');
+          setBusy(false);
+        });
       },
       () => { setMsg('Нет доступа к местоположению.'); setBusy(false); }
     );
-  }, [clearMarkers, addMarker]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const init = () => {
-      if (cancelled || !mapRef.current || leafletMapRef.current) return;
-      if (!window.L) { setTimeout(init, 200); return; }
-      leafletMapRef.current = window.L.map(mapRef.current).setView([55.7558, 37.6173], 12);
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
-        maxZoom: 19,
-      }).addTo(leafletMapRef.current);
-      if (!cancelled) geolocate();
+      if (cancelled || !mapRef.current || ymapRef.current) return;
+      if (!window.ymaps) { setTimeout(init, 300); return; }
+      window.ymaps.ready(() => {
+        if (cancelled || ymapRef.current) return;
+        ymapRef.current = new window.ymaps.Map(mapRef.current, {
+          center: [55.7558, 37.6173],
+          zoom: 11,
+          controls: ['zoomControl'],
+        });
+        if (!cancelled) geolocate();
+      });
     };
     setTimeout(init, 100);
     return () => {
       cancelled = true;
-      if (leafletMapRef.current) { leafletMapRef.current.remove(); leafletMapRef.current = null; }
+      if (ymapRef.current) { ymapRef.current.destroy(); ymapRef.current = null; }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [geolocate]);
 
-  const focusOnPharmacy = (item) => { if (leafletMapRef.current) leafletMapRef.current.setView(item.coords, 17); };
-  const normalizeUrl = (url) => url.startsWith('http://') || url.startsWith('https://') ? url : `https://${url}`;
+  const focusOnPharmacy = (item) => { if (ymapRef.current) ymapRef.current.setCenter(item.coords, 17); };
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -181,20 +169,12 @@ const PharmacySheet = ({ onClose }) => {
             {pharmacies.map((item, i) => {
               const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, item.coords[0], item.coords[1]) : null;
               return (
-                <div key={i} className="pharm-card">
-                  <div className="pharm-card-top" style={{ cursor: 'pointer' }} onClick={() => focusOnPharmacy(item)}>
+                <div key={i} className="pharm-card" style={{ cursor: 'pointer' }} onClick={() => focusOnPharmacy(item)}>
+                  <div className="pharm-card-top">
                     <span className="pharm-name">{item.name}</span>
                     {dist !== null && <span className="pharm-dist">{fmtDist(dist)}</span>}
                   </div>
                   {item.address && <span className="pharm-desc">{item.address}</span>}
-                  {item.website && (
-                    <a href={normalizeUrl(item.website)} target="_blank" rel="noopener noreferrer" className="pharm-website-btn">
-                      Перейти на сайт
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13">
-                        <line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/>
-                      </svg>
-                    </a>
-                  )}
                 </div>
               );
             })}
