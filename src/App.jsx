@@ -81,7 +81,7 @@ const PharmacySheet = ({ onClose }) => {
     if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
     setBusy(true); setMsg('');
     navigator.geolocation.getCurrentPosition(
-      ({ coords: { latitude: lat, longitude: lon } }) => {
+      async ({ coords: { latitude: lat, longitude: lon } }) => {
         setUserCoords({ lat, lon });
         const map = ymapRef.current;
         if (!map) { setBusy(false); return; }
@@ -93,30 +93,30 @@ const PharmacySheet = ({ onClose }) => {
           balloonContent: 'Вы здесь',
         }, { preset: 'islands#blueCircleDotIcon' }));
 
-        // Поиск аптек рядом
-        const delta = 0.018;
-        window.ymaps.search('аптека', {
-          boundedBy: [[lat - delta, lon - delta * 1.5], [lat + delta, lon + delta * 1.5]],
-          strictBounds: false,
-          results: 30,
-        }).then((res) => {
-          const items = [];
-          res.geoObjects.each((obj) => {
-            const coords = obj.geometry.getCoordinates();
-            const name = obj.properties.get('name') || 'Аптека';
-            const address = obj.properties.get('description') || '';
+        // Поиск аптек через Overpass API
+        try {
+          const q = `[out:json][timeout:25];node["amenity"="pharmacy"](around:2000,${lat},${lon});out body;`;
+          const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          const elements = data.elements || [];
+          const items = elements.map(el => {
+            const name = el.tags?.name || 'Аптека';
+            const street = el.tags?.['addr:street'] || '';
+            const house = el.tags?.['addr:housenumber'] || '';
+            const address = [street, house].filter(Boolean).join(', ');
+            const coords = [el.lat, el.lon];
             map.geoObjects.add(new window.ymaps.Placemark(coords, {
               balloonContent: `<b>${name}</b>${address ? '<br>' + address : ''}`,
             }, { preset: 'islands#redMedicalIcon' }));
-            items.push({ name, address, coords });
+            return { name, address, coords };
           });
           setPharmacies(items);
-          if (!items.length) setMsg('Аптеки рядом не найдены.');
-          setBusy(false);
-        }).catch(() => {
+          if (!items.length) setMsg('Аптеки в радиусе 2 км не найдены.');
+        } catch {
           setMsg('Ошибка поиска аптек. Попробуйте позже.');
+        } finally {
           setBusy(false);
-        });
+        }
       },
       () => { setMsg('Нет доступа к местоположению.'); setBusy(false); }
     );
