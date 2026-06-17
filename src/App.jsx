@@ -346,16 +346,17 @@ const App = () => {
   const [intakeQty, setIntakeQty] = useState(1);
   const [swipedIntakeId, setSwipedIntakeId] = useState(null);
   const [userId, setUserId] = useState(null);
+  const [userEmail, setUserEmail] = useState('');
   const touchStartX = useRef(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { setUserId(session.user.id); loadUserData(session.user.id); }
+      if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email || ''); loadUserData(session.user.id); }
       else setAuthStep('login');
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) { setUserId(session.user.id); loadUserData(session.user.id); }
-      else { setUserId(null); setAuthStep('login'); }
+      if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email || ''); loadUserData(session.user.id); }
+      else { setUserId(null); setUserEmail(''); setAuthStep('login'); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -724,51 +725,114 @@ const App = () => {
 
       {activeTab === 'profile' && (
         <div className="overlay" onClick={e => e.target === e.currentTarget && setActiveTab('home')}>
-          <div className="sheet">
-            <div className="sheet-header">
-              <h2>Профиль</h2>
-              <button className="close-btn" onClick={() => setActiveTab('home')}>×</button>
-            </div>
+          <div className="sheet" style={{ padding: 0, overflow: 'hidden' }}>
             <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
-            <div className="profile-row">
-              <button className="profile-avatar" onClick={() => avatarInputRef.current?.click()}>
-                {avatar ? (
-                  <img src={avatar} alt="avatar" className="profile-avatar-img" />
-                ) : (
-                  <span className="profile-avatar-initials">
-                  </span>
-                )}
-                <div className="avatar-edit-badge">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="10" height="10">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
+
+            {/* Gradient header */}
+            <div style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%)', padding: '28px 20px 48px', position: 'relative' }}>
+              <button onClick={() => setActiveTab('home')} style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', color: '#fff', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                <button onClick={() => avatarInputRef.current?.click()} style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <div style={{ width: 84, height: 84, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.6)', overflow: 'hidden', background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {avatar
+                      ? <img src={avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : <span style={{ fontSize: 32, fontWeight: 700, color: '#fff', textTransform: 'uppercase' }}>{(profileName || profile.name || '?')[0]}</span>
+                    }
+                  </div>
+                  <div style={{ position: 'absolute', bottom: 2, right: 2, background: '#fff', borderRadius: '50%', width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,.2)' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.5" width="12" height="12">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </div>
+                </button>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 20 }}>{profile.name || 'Пользователь'}</div>
+                  {userEmail && <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 3 }}>{userEmail}</div>}
                 </div>
-              </button>
-              <div className="profile-name-field">
-                <label className="field-label">Ваше имя</label>
-                <input className="field-input" style={{ marginBottom: 0 }} placeholder="Имя" value={profileName} onChange={e => setProfileName(e.target.value)} readOnly={!profileEdit} />
               </div>
             </div>
-            <label className="field-label" style={{ marginTop: 16 }}>Email</label>
-            <label className="field-label">Аллергия / Заболевания</label>
-            <textarea className="field-input field-textarea" placeholder="" value={profileAllergy} onChange={e => setProfileAllergy(e.target.value)} readOnly={!profileEdit} />
-            {profileEdit ? (
-              <button className="primary-btn" onClick={saveProfile}>Сохранить</button>
-            ) : (
-              <>
-                <button className="primary-btn profile-edit-btn" onClick={() => setProfileEdit(true)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="16" height="16" style={{ marginRight: 8 }}>
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                  Редактировать
+
+            {/* Info cards */}
+            <div style={{ padding: '0 16px 20px', marginTop: -24 }}>
+              <div style={{ background: '#fff', borderRadius: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', overflow: 'hidden', marginBottom: 12 }}>
+
+                {/* Name */}
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f3f4f6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" width="18" height="18">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Имя</div>
+                      {profileEdit
+                        ? <input style={{ width: '100%', border: 'none', outline: 'none', fontSize: 15, fontWeight: 500, color: '#111', background: 'transparent', padding: 0 }} value={profileName} onChange={e => setProfileName(e.target.value)} autoFocus />
+                        : <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{profile.name || '—'}</div>
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f3f4f6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" width="18" height="18">
+                        <rect x="2" y="4" width="20" height="16" rx="3"/><path d="m2 7 10 7 10-7"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</div>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{userEmail || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Allergies */}
+                <div style={{ padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" width="18" height="18">
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Аллергии / Заболевания</div>
+                      {profileEdit
+                        ? <textarea style={{ width: '100%', border: 'none', outline: 'none', fontSize: 15, fontWeight: 500, color: '#111', background: 'transparent', padding: 0, resize: 'none', minHeight: 60, fontFamily: 'inherit' }} value={profileAllergy} onChange={e => setProfileAllergy(e.target.value)} />
+                        : <div style={{ fontSize: 15, fontWeight: 500, color: '#111', whiteSpace: 'pre-wrap' }}>{profile.allergy || '—'}</div>
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              {profileEdit ? (
+                <button onClick={saveProfile} style={{ width: '100%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', border: 'none', borderRadius: 16, padding: '15px', fontSize: 16, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg>
+                  Сохранить изменения
                 </button>
-                <button className="primary-btn" style={{ background: '#ef4444', marginTop: 8 }} onClick={() => supabase.auth.signOut()}>
-                  Выйти
-                </button>
-              </>
-            )}
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <button onClick={() => { setProfileName(profile.name || ''); setProfileAllergy(profile.allergy || ''); setProfileEdit(true); }} style={{ width: '100%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', border: 'none', borderRadius: 16, padding: '15px', fontSize: 16, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="18" height="18">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Редактировать профиль
+                  </button>
+                  <button onClick={() => supabase.auth.signOut()} style={{ width: '100%', background: '#fff', color: '#ef4444', border: '1.5px solid #fecaca', borderRadius: 16, padding: '15px', fontSize: 16, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" width="18" height="18">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                    Выйти из аккаунта
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
