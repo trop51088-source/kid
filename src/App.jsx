@@ -377,11 +377,15 @@ const App = () => {
 
   const handleManualAdd = async () => {
     if (!manualName.trim()) return;
+    const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
     const { data, error } = await supabase.from('medicines').insert({
-      user_id: userId, name: manualName.trim(), exp_date: manualExp || null, quantity: manualQty,
+      user_id: uid, name: manualName.trim(), exp_date: manualExp || null, quantity: manualQty,
     }).select().single();
     if (!error && data) {
       setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+    } else {
+      console.error('Supabase insert error:', error);
+      setMedicines(prev => [{ id: Date.now(), name: manualName.trim(), expDate: manualExp || null, quantity: manualQty }, ...prev]);
     }
     setManualOpen(false);
   };
@@ -453,11 +457,16 @@ const App = () => {
     const drugs = d.drugsData || {};
     const name = d.productName || drugs.prodDescLabel || 'Неизвестное лекарство';
     const expDate = d.expDate || drugs.expirationDate || null;
+    const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
     const { data, error } = await supabase.from('medicines').insert({
-      user_id: userId, name, exp_date: expDate, quantity: addQty,
+      user_id: uid, name, exp_date: expDate, quantity: addQty,
     }).select().single();
     if (!error && data) {
       setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+    } else {
+      // fallback: добавляем локально если Supabase недоступен
+      console.error('Supabase insert error:', error);
+      setMedicines(prev => [{ id: Date.now(), name, expDate, quantity: addQty }, ...prev]);
     }
     closeScanner();
   };
