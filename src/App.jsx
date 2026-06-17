@@ -379,7 +379,6 @@ const App = () => {
     const newMed = { id, name: manualName.trim(), expDate: manualExp || null, quantity: manualQty };
     setMedicines(prev => [newMed, ...prev]);
     setManualOpen(false);
-    }
   };
 
   const openScanner = () => { setScanResult(null); setScanError(null); setAddQty(15); setScannerOpen(true); setTimeout(() => startScanner(), 200); };
@@ -456,7 +455,6 @@ const App = () => {
     };
     setMedicines(prev => [newMed, ...prev]);
     closeScanner();
-    }
   };
 
   const getMedicineData = () => {
@@ -483,21 +481,17 @@ const App = () => {
     const newIntake = { id, name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false };
     setIntakes(prev => [newIntake, ...prev]);
     setIntakeName(''); setIntakeTime(''); setIntakeQty(1); setAddIntakeOpen(false);
-    }
   };
 
   const toggleIntakeDone = async (id) => {
     setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
     setSwipedIntakeId(null);
-    const intake = intakes.find(i => i.id === id);
-    }
   };
 
   const closeSchedule = () => {
     const doneIds = intakes.filter(i => i.done).map(i => i.id);
     setIntakes(prev => prev.filter(i => !i.done));
     setActiveTab('home');
-    }
   };
 
   const deleteIntake = async (id) => {
@@ -708,6 +702,7 @@ const App = () => {
                   </svg>
                   Редактировать
                 </button>
+                <button className="primary-btn" style={{ background: '#ef4444', marginTop: 8 }} onClick={() => supabase.auth.signOut()}>
                   Выйти
                 </button>
               </>
