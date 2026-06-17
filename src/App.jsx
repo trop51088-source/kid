@@ -110,6 +110,7 @@ const PharmacySheet = ({ onClose }) => {
             }, { preset: 'islands#redMedicalIcon' }));
             return { name, address, coords };
           });
+          items.sort((a, b) => haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1]));
           setPharmacies(items);
           if (!items.length) setMsg('Аптеки в радиусе 2 км не найдены.');
         } catch {
