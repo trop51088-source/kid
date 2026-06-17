@@ -311,16 +311,17 @@ const App = () => {
   const [intakeTime, setIntakeTime] = useState('');
   const [intakeQty, setIntakeQty] = useState(1);
   const [swipedIntakeId, setSwipedIntakeId] = useState(null);
+  const [userId, setUserId] = useState(null);
   const touchStartX = useRef(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) { loadUserData(session.user.id); }
+      if (session?.user) { setUserId(session.user.id); loadUserData(session.user.id); }
       else setAuthStep('login');
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) { loadUserData(session.user.id); }
-      else { setAuthStep('login'); }
+      if (session?.user) { setUserId(session.user.id); loadUserData(session.user.id); }
+      else { setUserId(null); setAuthStep('login'); }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -361,6 +362,7 @@ const App = () => {
     const updated = { name: profileName, allergy: profileAllergy };
     setProfile(updated);
     setProfileEdit(false);
+    if (userId) await saveProfileToSupabase(userId, updated);
   };
 
   const handleAvatarChange = (e) => {
@@ -375,9 +377,12 @@ const App = () => {
 
   const handleManualAdd = async () => {
     if (!manualName.trim()) return;
-    const id = Date.now();
-    const newMed = { id, name: manualName.trim(), expDate: manualExp || null, quantity: manualQty };
-    setMedicines(prev => [newMed, ...prev]);
+    const { data, error } = await supabase.from('medicines').insert({
+      user_id: userId, name: manualName.trim(), exp_date: manualExp || null, quantity: manualQty,
+    }).select().single();
+    if (!error && data) {
+      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+    }
     setManualOpen(false);
   };
 
@@ -446,14 +451,14 @@ const App = () => {
     if (!scanResult) return;
     const d = scanResult?.data || {};
     const drugs = d.drugsData || {};
-    const id = Date.now();
-    const newMed = {
-      id,
-      name: d.productName || drugs.prodDescLabel || 'Неизвестное лекарство',
-      expDate: d.expDate || drugs.expirationDate || null,
-      quantity: addQty,
-    };
-    setMedicines(prev => [newMed, ...prev]);
+    const name = d.productName || drugs.prodDescLabel || 'Неизвестное лекарство';
+    const expDate = d.expDate || drugs.expirationDate || null;
+    const { data, error } = await supabase.from('medicines').insert({
+      user_id: userId, name, exp_date: expDate, quantity: addQty,
+    }).select().single();
+    if (!error && data) {
+      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+    }
     closeScanner();
   };
 
@@ -467,7 +472,8 @@ const App = () => {
   const deleteMedicine = async (id) => {
     setSwipedMedId(null);
     setDeletingMeds(prev => new Set(prev).add(id));
-    setTimeout(async () => {
+    await supabase.from('medicines').delete().eq('id', id);
+    setTimeout(() => {
       setMedicines(prev => prev.filter(m => m.id !== id));
       setDeletingMeds(prev => { const s = new Set(prev); s.delete(id); return s; });
     }, 350);
@@ -477,19 +483,27 @@ const App = () => {
 
   const handleAddIntake = async () => {
     if (!intakeName.trim()) return;
-    const id = Date.now();
-    const newIntake = { id, name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false };
-    setIntakes(prev => [newIntake, ...prev]);
+    const { data, error } = await supabase.from('intakes').insert({
+      user_id: userId, name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false,
+    }).select().single();
+    if (!error && data) {
+      setIntakes(prev => [{ id: data.id, name: data.name, time: data.time, qty: data.qty, done: data.done }, ...prev]);
+    }
     setIntakeName(''); setIntakeTime(''); setIntakeQty(1); setAddIntakeOpen(false);
   };
 
   const toggleIntakeDone = async (id) => {
-    setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: !i.done } : i));
+    const intake = intakes.find(i => i.id === id);
+    if (!intake) return;
+    const newDone = !intake.done;
+    setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: newDone } : i));
     setSwipedIntakeId(null);
+    await supabase.from('intakes').update({ done: newDone }).eq('id', id);
   };
 
   const closeSchedule = () => {
     const doneIds = intakes.filter(i => i.done).map(i => i.id);
+    if (doneIds.length > 0) supabase.from('intakes').delete().in('id', doneIds);
     setIntakes(prev => prev.filter(i => !i.done));
     setActiveTab('home');
   };
@@ -497,7 +511,8 @@ const App = () => {
   const deleteIntake = async (id) => {
     setSwipedIntakeId(null);
     setDeletingIntakes(prev => new Set(prev).add(id));
-    setTimeout(async () => {
+    await supabase.from('intakes').delete().eq('id', id);
+    setTimeout(() => {
       setIntakes(prev => prev.filter(i => i.id !== id));
       setDeletingIntakes(prev => { const s = new Set(prev); s.delete(id); return s; });
     }, 350);
