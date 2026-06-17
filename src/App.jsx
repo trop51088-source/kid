@@ -515,6 +515,8 @@ const App = () => {
 
   if (authStep === 'onboarding') {
     return <OnboardingScreen onDone={async (p) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) await saveProfileToSupabase(session.user.id, p);
       setProfile(p);
       setAuthStep('done');
     }} />;
