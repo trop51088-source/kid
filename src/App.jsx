@@ -109,10 +109,11 @@ const PharmacySheet = ({ onClose }) => {
             const phone = el.tags?.phone || el.tags?.['contact:phone'] || null;
             const hours = el.tags?.opening_hours || null;
             const coords = [el.lat, el.lon];
-            map.geoObjects.add(new window.ymaps.Placemark(coords, {
-              balloonContent: `<b>${name}</b>${address ? '<br>' + address : ''}${hours ? '<br>⏰ ' + hours : ''}`,
-            }, { preset: 'islands#redMedicalIcon' }));
-            return { name, address, website, phone, hours, coords };
+            const item = { name, address, website, phone, hours, coords };
+            const placemark = new window.ymaps.Placemark(coords, {}, { preset: 'islands#redMedicalIcon' });
+            placemark.events.add('click', () => setSelectedPharmacy(item));
+            map.geoObjects.add(placemark);
+            return item;
           });
           items.sort((a, b) => haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1]));
           setPharmacies(items);
