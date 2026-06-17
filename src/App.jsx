@@ -74,6 +74,7 @@ const PharmacySheet = ({ onClose }) => {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [userCoords, setUserCoords] = useState(null);
+  const [selectedPharmacy, setSelectedPharmacy] = useState(null);
   const mapRef = useRef(null);
   const ymapRef = useRef(null);
 
@@ -104,11 +105,14 @@ const PharmacySheet = ({ onClose }) => {
             const street = el.tags?.['addr:street'] || '';
             const house = el.tags?.['addr:housenumber'] || '';
             const address = [street, house].filter(Boolean).join(', ');
+            const website = el.tags?.website || el.tags?.['contact:website'] || null;
+            const phone = el.tags?.phone || el.tags?.['contact:phone'] || null;
+            const hours = el.tags?.opening_hours || null;
             const coords = [el.lat, el.lon];
             map.geoObjects.add(new window.ymaps.Placemark(coords, {
-              balloonContent: `<b>${name}</b>${address ? '<br>' + address : ''}`,
+              balloonContent: `<b>${name}</b>${address ? '<br>' + address : ''}${hours ? '<br>⏰ ' + hours : ''}`,
             }, { preset: 'islands#redMedicalIcon' }));
-            return { name, address, coords };
+            return { name, address, website, phone, hours, coords };
           });
           items.sort((a, b) => haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1]));
           setPharmacies(items);
@@ -170,15 +174,63 @@ const PharmacySheet = ({ onClose }) => {
             {pharmacies.map((item, i) => {
               const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, item.coords[0], item.coords[1]) : null;
               return (
-                <div key={i} className="pharm-card" style={{ cursor: 'pointer' }} onClick={() => focusOnPharmacy(item)}>
+                <div key={i} className="pharm-card" style={{ cursor: 'pointer' }} onClick={() => { focusOnPharmacy(item); setSelectedPharmacy(item); }}>
                   <div className="pharm-card-top">
                     <span className="pharm-name">{item.name}</span>
                     {dist !== null && <span className="pharm-dist">{fmtDist(dist)}</span>}
                   </div>
                   {item.address && <span className="pharm-desc">{item.address}</span>}
+                  {item.hours && <span className="pharm-desc" style={{ color: '#16a34a' }}>⏰ {item.hours}</span>}
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {selectedPharmacy && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'flex-end' }}
+            onClick={() => setSelectedPharmacy(null)}>
+            <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', padding: '24px 20px 36px', maxHeight: '70vh', overflowY: 'auto' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1, paddingRight: 12 }}>{selectedPharmacy.name}</h3>
+                <button onClick={() => setSelectedPharmacy(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888', lineHeight: 1 }}>×</button>
+              </div>
+              {selectedPharmacy.address && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>📍</span>
+                  <span style={{ fontSize: 14, color: '#444' }}>{selectedPharmacy.address}</span>
+                </div>
+              )}
+              {selectedPharmacy.hours && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>⏰</span>
+                  <span style={{ fontSize: 14, color: '#16a34a' }}>{selectedPharmacy.hours}</span>
+                </div>
+              )}
+              {selectedPharmacy.phone && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>📞</span>
+                  <a href={`tel:${selectedPharmacy.phone}`} style={{ fontSize: 14, color: '#3b82f6', textDecoration: 'none' }}>{selectedPharmacy.phone}</a>
+                </div>
+              )}
+              {selectedPharmacy.website && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
+                  <span style={{ fontSize: 18 }}>🌐</span>
+                  <a href={selectedPharmacy.website.startsWith('http') ? selectedPharmacy.website : `https://${selectedPharmacy.website}`}
+                    target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, color: '#3b82f6', textDecoration: 'none', wordBreak: 'break-all' }}>
+                    {selectedPharmacy.website}
+                  </a>
+                </div>
+              )}
+              {userCoords && (
+                <a href={`https://yandex.ru/maps/?rtext=${userCoords.lat},${userCoords.lon}~${selectedPharmacy.coords[0]},${selectedPharmacy.coords[1]}&rtt=mt`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'block', background: '#ef4444', color: '#fff', textAlign: 'center', padding: '14px', borderRadius: 14, fontWeight: 600, fontSize: 15, textDecoration: 'none', marginTop: 4 }}>
+                  Маршрут в Яндекс.Картах
+                </a>
+              )}
+            </div>
           </div>
         )}
       </div>
