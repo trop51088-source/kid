@@ -1,0 +1,687 @@
+================================================================================
+ДЕПОНИРУЕМЫЕ МАТЕРИАЛЫ
+Программа для ЭВМ: MyPillBox — веб-сервис персонального контроля приёма
+лекарственных средств
+Автор: [ФАМИЛИЯ ИМЯ ОТЧЕСТВО]
+Год создания: 2026
+================================================================================
+Фрагмент исходного кода (~70% от общего объёма программы)
+Файлы: src/App.jsx (клиентская часть), api.py (серверная часть)
+================================================================================
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } from '@zxing/library';
+
+
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  'https://cidnwmmhwryhwpxbocwe.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpZG53bW1od3J5aHdweGJvY3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDg0NzQsImV4cCI6MjA5MDk4NDQ3NH0.Jh329ywjiTRWrHdmMlV53sJtkvOB1ce5abXTbC6IvQk'
+);
+
+const getApiUrl = (endpoint) => `/api/${endpoint}`;
+
+const parseExpDate = (dateStr) => {
+  if (!dateStr || dateStr === '—') return null;
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) {
+    const [d, m, y] = dateStr.split('.');
+    return new Date(y, m - 1, d);
+  }
+  if (/^\d{2}\.\d{4}$/.test(dateStr)) {
+    const [m, y] = dateStr.split('.');
+    return new Date(y, m - 1, 1);
+  }
+  return new Date(dateStr);
+};
+
+const isExpired = (dateStr) => {
+  const date = parseExpDate(dateStr);
+  if (!date) return false;
+  return date < new Date();
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr || dateStr === '—') return '—';
+  const date = parseExpDate(dateStr);
+  if (!date || isNaN(date)) return dateStr;
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = String(date.getFullYear()).slice(2);
+  return `${d}.${m}.${y}`;
+};
+
+const CloseIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const EmailIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+    <rect x="2" y="4" width="20" height="16" rx="2"/>
+    <path d="M2 7l10 7 10-7"/>
+  </svg>
+);
+
+const haversineKm = (lat1, lon1, lat2, lon2) => {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+};
+const fmtDist = (km) => km < 1 ? `${Math.round(km*1000)} м` : `${km.toFixed(1)} км`;
+
+const SearchIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
+    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+  </svg>
+);
+
+const PharmacySheet = ({ onClose }) => {
+  const [pharmacies, setPharmacies] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [userCoords, setUserCoords] = useState(null);
+  const [selectedPharmacy, setSelectedPharmacy] = useState(null);
+  const mapRef = useRef(null);
+  const ymapRef = useRef(null);
+
+  const geolocate = useCallback(() => {
+    if (!navigator.geolocation) { setMsg('Геолокация недоступна.'); return; }
+    setBusy(true); setMsg('');
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords: { latitude: lat, longitude: lon } }) => {
+        setUserCoords({ lat, lon });
+        const map = ymapRef.current;
+        if (!map) { setBusy(false); return; }
+        map.setCenter([lat, lon], 15);
+        map.geoObjects.removeAll();
+
+        // Маркер пользователя
+        map.geoObjects.add(new window.ymaps.Placemark([lat, lon], {
+          balloonContent: 'Вы здесь',
+        }, { preset: 'islands#blueCircleDotIcon' }));
+
+        // Поиск аптек через Overpass API
+        try {
+          const q = `[out:json][timeout:25];node["amenity"="pharmacy"](around:2000,${lat},${lon});out body;`;
+          const res = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          const elements = data.elements || [];
+          const items = elements.map(el => {
+            const name = el.tags?.name || 'Аптека';
+            const street = el.tags?.['addr:street'] || '';
+            const house = el.tags?.['addr:housenumber'] || '';
+            const address = [street, house].filter(Boolean).join(', ');
+            const website = el.tags?.website || el.tags?.['contact:website'] || null;
+            const phone = el.tags?.phone || el.tags?.['contact:phone'] || null;
+            const hours = el.tags?.opening_hours || null;
+            const coords = [el.lat, el.lon];
+            const item = { name, address, website, phone, hours, coords };
+            const placemark = new window.ymaps.Placemark(coords, {}, { preset: 'islands#redMedicalIcon' });
+            placemark.events.add('click', () => setSelectedPharmacy(item));
+            map.geoObjects.add(placemark);
+            return item;
+          });
+          items.sort((a, b) => haversineKm(lat, lon, a.coords[0], a.coords[1]) - haversineKm(lat, lon, b.coords[0], b.coords[1]));
+          setPharmacies(items);
+          if (!items.length) setMsg('Аптеки в радиусе 2 км не найдены.');
+        } catch {
+          setMsg('Ошибка поиска аптек. Попробуйте позже.');
+        } finally {
+          setBusy(false);
+        }
+      },
+      () => { setMsg('Нет доступа к местоположению.'); setBusy(false); }
+    );
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const init = () => {
+      if (cancelled || !mapRef.current || ymapRef.current) return;
+      if (!window.ymaps) { setTimeout(init, 300); return; }
+      window.ymaps.ready(() => {
+        if (cancelled || ymapRef.current) return;
+        ymapRef.current = new window.ymaps.Map(mapRef.current, {
+          center: [55.7558, 37.6173],
+          zoom: 11,
+          controls: ['zoomControl'],
+        });
+        if (!cancelled) geolocate();
+      });
+    };
+    setTimeout(init, 100);
+    return () => {
+      cancelled = true;
+      if (ymapRef.current) { ymapRef.current.destroy(); ymapRef.current = null; }
+    };
+  }, [geolocate]);
+
+  const focusOnPharmacy = (item) => { if (ymapRef.current) ymapRef.current.setCenter(item.coords, 17); };
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet">
+        <div className="sheet-header">
+          <h2>Аптеки рядом</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <button className="geo-btn" onClick={geolocate} disabled={busy}>
+          {busy
+            ? <div className="spinner" style={{ width: 17, height: 17, borderWidth: 2 }} />
+            : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
+                <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9"/>
+              </svg>
+          }
+          {busy ? 'Поиск...' : 'Определить моё местоположение'}
+        </button>
+        {msg && <p className="pharm-status">{msg}</p>}
+        <div className="map-container" ref={mapRef} />
+        {pharmacies.length > 0 && (
+          <div className="pharm-list">
+            {pharmacies.map((item, i) => {
+              const dist = userCoords ? haversineKm(userCoords.lat, userCoords.lon, item.coords[0], item.coords[1]) : null;
+              return (
+                <div key={i} className="pharm-card" style={{ cursor: 'pointer' }} onClick={() => { focusOnPharmacy(item); setSelectedPharmacy(item); }}>
+                  <div className="pharm-card-top">
+                    <span className="pharm-name">{item.name}</span>
+                    {dist !== null && <span className="pharm-dist">{fmtDist(dist)}</span>}
+                  </div>
+                  {item.address && <span className="pharm-desc">{item.address}</span>}
+                  {item.hours && <span className="pharm-desc" style={{ color: '#16a34a' }}>⏰ {item.hours}</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {selectedPharmacy && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 9999, display: 'flex', alignItems: 'flex-end' }}
+            onClick={() => setSelectedPharmacy(null)}>
+            <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', padding: '24px 20px 36px', maxHeight: '70vh', overflowY: 'auto' }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1, paddingRight: 12 }}>{selectedPharmacy.name}</h3>
+                <button onClick={() => setSelectedPharmacy(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888', lineHeight: 1 }}>×</button>
+              </div>
+              {selectedPharmacy.address && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>📍</span>
+                  <span style={{ fontSize: 14, color: '#444' }}>{selectedPharmacy.address}</span>
+                </div>
+              )}
+              {selectedPharmacy.hours && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>⏰</span>
+                  <span style={{ fontSize: 14, color: '#16a34a' }}>{selectedPharmacy.hours}</span>
+                </div>
+              )}
+              {selectedPharmacy.phone && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                  <span style={{ fontSize: 18 }}>📞</span>
+                  <a href={`tel:${selectedPharmacy.phone}`} style={{ fontSize: 14, color: '#3b82f6', textDecoration: 'none' }}>{selectedPharmacy.phone}</a>
+                </div>
+              )}
+              {selectedPharmacy.website && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
+                  <span style={{ fontSize: 18 }}>🌐</span>
+                  <a href={selectedPharmacy.website.startsWith('http') ? selectedPharmacy.website : `https://${selectedPharmacy.website}`}
+                    target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, color: '#3b82f6', textDecoration: 'none', wordBreak: 'break-all' }}>
+                    {selectedPharmacy.website}
+                  </a>
+                </div>
+              )}
+              {userCoords && (
+                <a href={`https://yandex.ru/maps/?rtext=${userCoords.lat},${userCoords.lon}~${selectedPharmacy.coords[0]},${selectedPharmacy.coords[1]}&rtt=mt`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'block', background: '#ef4444', color: '#fff', textAlign: 'center', padding: '14px', borderRadius: 14, fontWeight: 600, fontSize: 15, textDecoration: 'none', marginTop: 4 }}>
+                  Маршрут в Яндекс.Картах
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AuthScreen = ({ onAuth }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleEmailSignIn = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'email',
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) throw error;
+    } catch (e) {
+      setError('Ошибка входа: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="auth-screen">
+      <div className="auth-logo">
+        <div className="auth-icon-wrap">
+          <svg viewBox="0 0 80 80" fill="none" width="96" height="96">
+            <rect x="8" y="18" width="64" height="50" rx="10" fill="#fff"/>
+            <rect x="8" y="18" width="64" height="50" rx="10" stroke="#e0e8f0" strokeWidth="2"/>
+            <rect x="14" y="10" width="52" height="14" rx="6" fill="#D0E8FF"/>
+            <rect x="14" y="10" width="52" height="14" rx="6" stroke="#A8CBE8" strokeWidth="1.5"/>
+            <rect x="33" y="7" width="14" height="8" rx="4" fill="#A8CBE8"/>
+            <rect x="36" y="31" width="8" height="24" rx="4" fill="#ef4444"/>
+            <rect x="28" y="39" width="24" height="8" rx="4" fill="#ef4444"/>
+            <rect x="16" y="24" width="20" height="3" rx="1.5" fill="rgba(255,255,255,0.6)"/>
+          </svg>
+        </div>
+        <span className="auth-app-name">МОЯ АПТЕЧКА</span>
+      </div>
+      <div className="auth-card">
+        <h2 className="auth-title">Вход</h2>
+        <p className="auth-sub">Войдите в аккаунт чтобы получить доступ к своей аптечке</p>
+        {error && <p className="auth-error">{error}</p>}
+        <button className="email-btn" onClick={handleEmailSignIn} disabled={loading}>
+          {loading ? <span>Вход...</span> : <><EmailIcon />Войти по почте</>}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const OnboardingScreen = ({ onDone }) => {
+  const [name, setName] = useState('');
+  const [allergy, setAllergy] = useState('');
+
+  const handleSubmit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    onDone({ name: trimmed, allergy: allergy.trim() });
+  };
+
+  return (
+    <div className="auth-screen">
+      <div className="onboard-content">
+        <h1 className="onboard-title">Добро пожаловать!</h1>
+        <label className="field-label">Ваше имя</label>
+        <input className="field-input" placeholder="" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} autoFocus />
+        <label className="field-label">Аллергии / Заболевания</label>
+        <input className="field-input" placeholder="Необязательно" value={allergy} onChange={e => setAllergy(e.target.value)} />
+        <button className="primary-btn" onClick={handleSubmit} disabled={!name.trim()}>Войти</button>
+      </div>
+    </div>
+  );
+};
+
+const App = () => {
+  const [authStep, setAuthStep] = useState('loading');
+  const [activeTab, setActiveTab] = useState('home');
+  const [medicines, setMedicines] = useState([]);
+  const [homeSearch, setHomeSearch] = useState('');
+  const [swipedMedId, setSwipedMedId] = useState(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [manualExp, setManualExp] = useState('');
+  const [manualQty, setManualQty] = useState(15);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [scanError, setScanError] = useState(null);
+  const [addQty, setAddQty] = useState(15);
+  const videoRef = useRef(null);
+  const readerRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const [profile, setProfile] = useState({});
+  const [profileEdit, setProfileEdit] = useState(false);
+  const [profileName, setProfileName] = useState('');
+  const [profileAllergy, setProfileAllergy] = useState('');
+  const [avatar, setAvatar] = useState(() => localStorage.getItem('pillbox_avatar') || '');
+  const avatarInputRef = useRef(null);
+  const [deletingMeds, setDeletingMeds] = useState(new Set());
+  const [deletingIntakes, setDeletingIntakes] = useState(new Set());
+  const [intakes, setIntakes] = useState([]);
+  const [addIntakeOpen, setAddIntakeOpen] = useState(false);
+  const [intakeName, setIntakeName] = useState('');
+  const [intakeTime, setIntakeTime] = useState('');
+  const [intakeQty, setIntakeQty] = useState(1);
+  const [swipedIntakeId, setSwipedIntakeId] = useState(null);
+  const [userId, setUserId] = useState(null);
+  const [userEmail, setUserEmail] = useState('');
+  const touchStartX = useRef(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email || ''); loadUserData(session.user.id); }
+      else setAuthStep('login');
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      if (session?.user) { setUserId(session.user.id); setUserEmail(session.user.email || ''); loadUserData(session.user.id); }
+      else { setUserId(null); setUserEmail(''); setAuthStep('login'); }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadUserData = async (uid) => {
+    try {
+      const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', uid).maybeSingle();
+      if (prof) {
+        setProfile({ name: prof.name || '', allergy: prof.allergy || '' });
+        setAuthStep('done');
+      } else {
+        setAuthStep('onboarding');
+      }
+
+      const { data: meds, error: medsError } = await supabase.from('medicines').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+      if (medsError) console.error('medicines load error:', medsError);
+      setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date, quantity: m.quantity })));
+
+      const { data: ints, error: intsError } = await supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+      if (intsError) console.error('intakes load error:', intsError);
+      setIntakes((ints || []).map(i => ({ id: i.id, name: i.name, time: i.time, qty: i.qty, done: i.done })));
+    } catch (e) {
+      console.error('loadUserData error:', e);
+      setAuthStep('onboarding');
+    }
+  };
+
+  const saveProfileToSupabase = async (uid, data) => {
+    await supabase.from('profiles').upsert({ user_id: uid, name: data.name, allergy: data.allergy }, { onConflict: 'user_id' });
+  };
+
+  const openProfile = () => {
+    setProfileName(profile.name || '');
+    setProfileAllergy(profile.allergy || '');
+    setProfileEdit(false);
+    setActiveTab('profile');
+  };
+
+  const saveProfile = async () => {
+    const updated = { name: profileName, allergy: profileAllergy };
+    setProfile(updated);
+    setProfileEdit(false);
+    if (userId) await saveProfileToSupabase(userId, updated);
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { setAvatar(ev.target.result); localStorage.setItem('pillbox_avatar', ev.target.result); };
+    reader.readAsDataURL(file);
+  };
+
+  const openManual = () => { setManualName(''); setManualExp(''); setManualQty(15); setManualOpen(true); };
+
+  const handleManualAdd = async () => {
+    if (!manualName.trim()) return;
+    const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
+    const { data, error } = await supabase.from('medicines').insert({
+      user_id: uid, name: manualName.trim(), exp_date: manualExp || null, quantity: manualQty,
+    }).select().single();
+    if (!error && data) {
+      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+    } else {
+      console.error('Supabase insert error:', error);
+      setMedicines(prev => [{ id: Date.now(), name: manualName.trim(), expDate: manualExp || null, quantity: manualQty }, ...prev]);
+    }
+    setManualOpen(false);
+  };
+
+  const openScanner = () => { setScanResult(null); setScanError(null); setAddQty(15); setScannerOpen(true); setTimeout(() => startScanner(), 200); };
+  const closeScanner = () => { stopScanner(); setScanResult(null); setScanError(null); setScannerOpen(false); };
+
+  const startScanner = async () => {
+    setScanResult(null); setScanError(null); setScanning(true);
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    const reader = new BrowserMultiFormatReader(hints);
+    readerRef.current = reader;
+    try {
+      const devices = await reader.listVideoInputDevices();
+      const back = devices.find(d => /back|rear|задн/i.test(d.label)) || devices[0];
+      await reader.decodeFromConstraints(
+        { video: { deviceId: back?.deviceId, width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: 'environment' } },
+        videoRef.current,
+        (result) => { if (result) fetchProduct(result.getText()); }
+      );
+    } catch (err) { setScanError('Не удалось запустить камеру: ' + err.message); setScanning(false); }
+  };
+
+  const stopScanner = () => { if (readerRef.current) { readerRef.current.reset(); readerRef.current = null; } setScanning(false); };
+
+  const fetchProduct = async (text) => {
+    setLoading(true); stopScanner();
+    const cis = text.trim();
+    const endpoints = [
+      `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
+      `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
+    ];
+    let lastError = null;
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { lastError = `HTTP ${res.status}`; continue; }
+        const data = await res.json();
+        setScanResult({ success: true, cis, data });
+        setLoading(false);
+        return;
+      } catch (e) { lastError = e.message; }
+    }
+    setScanError('Не удалось получить данные о препарате.');
+    setLoading(false);
+  };
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setLoading(true); stopScanner();
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    try {
+      const res = await fetch(getApiUrl('scan'), { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.success) setScanResult(data);
+      else setScanError(data.error || 'Код не распознан на фото');
+    } catch (e) { setScanError('Ошибка загрузки: ' + e.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleAddMedicine = async () => {
+    if (!scanResult) return;
+    const d = scanResult?.data || {};
+    const drugs = d.drugsData || {};
+    const name = d.productName || drugs.prodDescLabel || 'Неизвестное лекарство';
+    const expDate = d.expDate || drugs.expirationDate || null;
+    const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
+    const { data, error } = await supabase.from('medicines').insert({
+      user_id: uid, name, exp_date: expDate, quantity: addQty,
+    }).select().single();
+    if (!error && data) {
+      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+    } else {
+      // fallback: добавляем локально если Supabase недоступен
+      console.error('Supabase insert error:', error);
+      setMedicines(prev => [{ id: Date.now(), name, expDate, quantity: addQty }, ...prev]);
+    }
+    closeScanner();
+  };
+
+  const getMedicineData = () => {
+    if (!scanResult) return null;
+    const d = scanResult?.data || {};
+    const drugs = d.drugsData || {};
+    return { name: d.productName || drugs.prodDescLabel || 'Неизвестное лекарство', expDate: d.expDate || drugs.expirationDate || '—' };
+  };
+
+  const deleteMedicine = async (id) => {
+    setSwipedMedId(null);
+    setDeletingMeds(prev => new Set(prev).add(id));
+    await supabase.from('medicines').delete().eq('id', id);
+    setTimeout(() => {
+      setMedicines(prev => prev.filter(m => m.id !== id));
+      setDeletingMeds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }, 350);
+  };
+
+  const filteredMeds = medicines.filter(m => m.name.toLowerCase().includes(homeSearch.toLowerCase()));
+
+  const handleAddIntake = async () => {
+    if (!intakeName.trim()) return;
+    const { data, error } = await supabase.from('intakes').insert({
+      user_id: userId, name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false,
+    }).select().single();
+    if (!error && data) {
+      setIntakes(prev => [{ id: data.id, name: data.name, time: data.time, qty: data.qty, done: data.done }, ...prev]);
+    }
+    setIntakeName(''); setIntakeTime(''); setIntakeQty(1); setAddIntakeOpen(false);
+  };
+
+  const toggleIntakeDone = async (id) => {
+    const intake = intakes.find(i => i.id === id);
+    if (!intake) return;
+    const newDone = !intake.done;
+    setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: newDone } : i));
+    setSwipedIntakeId(null);
+    await supabase.from('intakes').update({ done: newDone }).eq('id', id);
+  };
+
+  const closeSchedule = () => {
+    const doneIds = intakes.filter(i => i.done).map(i => i.id);
+    if (doneIds.length > 0) supabase.from('intakes').delete().in('id', doneIds);
+    setIntakes(prev => prev.filter(i => !i.done));
+    setActiveTab('home');
+  };
+
+  const deleteIntake = async (id) => {
+    setSwipedIntakeId(null);
+    setDeletingIntakes(prev => new Set(prev).add(id));
+    await supabase.from('intakes').delete().eq('id', id);
+    setTimeout(() => {
+      setIntakes(prev => prev.filter(i => i.id !== id));
+      setDeletingIntakes(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }, 350);
+  };
+
+  if (authStep === 'loading') {
+    return <div className="auth-screen"><div className="spinner" style={{ width: 40, height: 40, margin: 'auto' }} /></div>;
+  }
+
+  if (authStep === 'login') {
+    return <AuthScreen onAuth={async (user) => {
+      await loadUserData(user.uid);
+    }} />;
+  }
+
+  if (authStep === 'onboarding') {
+    return <OnboardingScreen onDone={async (p) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) await saveProfileToSupabase(session.user.id, p);
+      setProfile(p);
+      setAuthStep('done');
+    }} />;
+  }
+
+  return (
+    <div className="app" onClick={() => { setSwipedMedId(null); setSwipedIntakeId(null); }}>
+      <div className="home">
+        <div className="home-header">
+          <h1 className="greeting">Привет, {profile.name || 'друг'}</h1>
+          <button className="avatar" onClick={openProfile}>
+            {avatar
+              ? <img src={avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+              : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="22" height="22">
+                  <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+                </svg>
+            }
+          </button>
+        </div>
+        <div className="search-bar">
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import os
+import shutil
+import asyncio
+import importlib.util
+import sys
+
+# Добавляем корневую директорию в путь, чтобы импортировать логику
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Пытаемся импортировать функции из основного скрипта
+try:
+    from chestniy_znak import decode_from_image, get_product_info, STATUS_MAP, LABELS
+except ImportError:
+    # Если не получается импортировать напрямую, подгрузим модуль по пути
+    spec = importlib.util.spec_from_file_location("chestniy_znak", "../chestniy_znak.py")
+    cz = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cz)
+    decode_from_image = cz.decode_from_image
+    get_product_info = cz.get_product_info
+    STATUS_MAP = cz.STATUS_MAP
+    LABELS = cz.LABELS
+
+app = FastAPI()
+
+# Разрешаем CORS для фронтенда
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+UPLOAD_DIR = "temp_uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.post("/scan")
+async def scan_product(file: UploadFile = File(...)):
+    # ... (код остается прежним)
+    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    try:
+        cis = decode_from_image(file_path)
+        data = await get_product_info(cis)
+        return {"success": True, "cis": cis, "data": data}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    finally:
+        if os.path.exists(file_path): os.remove(file_path)
+
+@app.post("/scan-text")
+async def scan_text(payload: dict):
+    text = payload.get("text")
+    if not text:
+        raise HTTPException(status_code=400, detail="No text provided")
+    
+    try:
+        # Сразу запрашиваем инфо по тексту (коду)
+        data = await get_product_info(text)
+        return {
+            "success": True,
+            "cis": text,
+            "data": data
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+================================================================================
+КОНЕЦ ДЕПОНИРУЕМЫХ МАТЕРИАЛОВ
