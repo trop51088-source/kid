@@ -319,32 +319,22 @@ const OnboardingScreen = ({ onDone }) => {
 };
 
 const MedicineDetailSheet = ({ medicine, onClose }) => {
-  const [wiki, setWiki] = React.useState(null);
+  const [drugInfo, setDrugInfo] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('info');
 
   React.useEffect(() => {
     if (!medicine) return;
     setLoading(true);
-    setWiki(null);
-    // Wikipedia: сначала ищем по названию, потом берём статью
-    const baseName = medicine.name.replace(/\d+\s*(мг|мл|г|таб|капс|amp).*/i, '').trim();
-    const searchUrl = `https://ru.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(baseName)}&limit=1&format=json&origin=*`;
-    fetch(searchUrl)
+    setDrugInfo(null);
+    const norm = s => s.toLowerCase().replace(/\s*\d+[\s,]*\s*(мг|мл|г|таб|капс|шт|amp|mg|ml).*/i, '').replace(/[®™«»]/g, '').trim();
+    const q = norm(medicine.name);
+    fetch('/drugs.json')
       .then(r => r.json())
-      .then(([, titles]) => {
-        if (!titles || !titles[0]) { setLoading(false); return; }
-        const pageTitle = titles[0];
-        return fetch(`https://ru.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=extracts&exintro=true&exchars=900&format=json&origin=*`)
-          .then(r => r.json())
-          .then(data => {
-            const pages = data?.query?.pages || {};
-            const page = Object.values(pages)[0];
-            if (page && page.pageid && page.extract) {
-              const text = page.extract.replace(/<[^>]+>/g, '').replace(/\n+/g, '\n').trim();
-              setWiki({ title: page.title, extract: text });
-            }
-          });
+      .then(drugs => {
+        let found = drugs.find(d => norm(d.name) === q || norm(d.inn) === q);
+        if (!found) found = drugs.find(d => norm(d.name).includes(q) || q.includes(norm(d.name)) || norm(d.inn).includes(q) || q.includes(norm(d.inn)));
+        setDrugInfo(found || null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -395,17 +385,35 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
               <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
                 <div className="spinner" style={{ width: 28, height: 28 }} />
               </div>
-            ) : wiki ? (
-              <div>
-                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
-                  {wiki.extract}
-                </p>
-                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>Источник: Wikipedia</p>
+            ) : drugInfo ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {drugInfo.group && <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: '#ede9fe', color: '#7c3aed', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>{drugInfo.group}</div>}
+                {drugInfo.forms && <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>Формы выпуска: <strong>{drugInfo.forms}</strong></div>}
+                {drugInfo.description && <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0 }}>{drugInfo.description}</p>}
+                {drugInfo.indications && (
+                  <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Показания</div>
+                    <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.indications}</p>
+                  </div>
+                )}
+                {drugInfo.contraindications && (
+                  <div style={{ background: '#fef2f2', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Противопоказания</div>
+                    <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.contraindications}</p>
+                  </div>
+                )}
+                {drugInfo.dosage && (
+                  <div style={{ background: '#eff6ff', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Дозировка</div>
+                    <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.dosage}</p>
+                  </div>
+                )}
               </div>
             ) : (
-              <p style={{ color: '#9ca3af', textAlign: 'center', padding: '24px 0', fontSize: 14 }}>
-                Описание не найдено в Wikipedia
-              </p>
+              <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 6 }}>Препарат не найден в базе</p>
+                <p style={{ color: '#c4b5fd', fontSize: 12 }}>Найдите инструкцию во вкладке «Инструкция»</p>
+              </div>
             )}
           </div>
         )}
