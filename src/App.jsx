@@ -1081,8 +1081,6 @@ const App = () => {
           </div>
         </div>
       )}
-    </div>
-
       {showGuestRegister && (
         <GuestRegisterSheet
           onClose={() => { setShowGuestRegister(false); setGuestLimitMessage(''); }}
