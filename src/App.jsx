@@ -327,18 +327,24 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
     if (!medicine) return;
     setLoading(true);
     setWiki(null);
-    // Wikipedia API — открытая, без CORS
-    const url = `https://ru.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(medicine.name)}&prop=extracts&exintro=true&exchars=800&format=json&origin=*`;
-    fetch(url)
+    // Wikipedia: сначала ищем по названию, потом берём статью
+    const baseName = medicine.name.replace(/\d+\s*(мг|мл|г|таб|капс|amp).*/i, '').trim();
+    const searchUrl = `https://ru.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(baseName)}&limit=1&format=json&origin=*`;
+    fetch(searchUrl)
       .then(r => r.json())
-      .then(data => {
-        const pages = data?.query?.pages || {};
-        const page = Object.values(pages)[0];
-        if (page && page.pageid && page.extract) {
-          // Убираем HTML теги
-          const text = page.extract.replace(/<[^>]+>/g, '').replace(/\n+/g, '\n').trim();
-          setWiki({ title: page.title, extract: text });
-        }
+      .then(([, titles]) => {
+        if (!titles || !titles[0]) { setLoading(false); return; }
+        const pageTitle = titles[0];
+        return fetch(`https://ru.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(pageTitle)}&prop=extracts&exintro=true&exchars=900&format=json&origin=*`)
+          .then(r => r.json())
+          .then(data => {
+            const pages = data?.query?.pages || {};
+            const page = Object.values(pages)[0];
+            if (page && page.pageid && page.extract) {
+              const text = page.extract.replace(/<[^>]+>/g, '').replace(/\n+/g, '\n').trim();
+              setWiki({ title: page.title, extract: text });
+            }
+          });
       })
       .catch(() => {})
       .finally(() => setLoading(false));
