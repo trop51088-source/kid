@@ -319,32 +319,37 @@ const OnboardingScreen = ({ onDone }) => {
 };
 
 const MedicineDetailSheet = ({ medicine, onClose }) => {
-  const [info, setInfo] = React.useState(null);
+  const [wiki, setWiki] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState('info');
 
   React.useEffect(() => {
     if (!medicine) return;
     setLoading(true);
-    setInfo(null);
-    fetch(`/api/medicine-info?name=${encodeURIComponent(medicine.name)}`)
+    setWiki(null);
+    // Wikipedia API — открытая, без CORS
+    const url = `https://ru.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(medicine.name)}&prop=extracts&exintro=true&exchars=800&format=json&origin=*`;
+    fetch(url)
       .then(r => r.json())
       .then(data => {
-        const rows = data.rows || [];
-        setInfo(rows[0] || null);
+        const pages = data?.query?.pages || {};
+        const page = Object.values(pages)[0];
+        if (page && page.pageid && page.extract) {
+          // Убираем HTML теги
+          const text = page.extract.replace(/<[^>]+>/g, '').replace(/\n+/g, '\n').trim();
+          setWiki({ title: page.title, extract: text });
+        }
       })
-      .catch(() => setInfo(null))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [medicine]);
 
   const expired = isExpired(medicine.expDate);
   const low = medicine.quantity <= 5;
   const grlsUrl = `https://grls.rosminzdrav.ru/grls/?t=reestr&n=medicines&search_filter=${encodeURIComponent(medicine.name)}`;
+  const rlsUrl = `https://www.rlsnet.ru/search?q=${encodeURIComponent(medicine.name)}`;
 
-  const tabs = [
-    { id: 'info', label: 'Общее' },
-    { id: 'instruction', label: 'Инструкция' },
-  ];
+  const tabs = [{ id: 'info', label: 'Общее' }, { id: 'links', label: 'Инструкция' }];
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -354,7 +359,7 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
           <button className="close-btn" onClick={onClose}>×</button>
         </div>
 
-        {/* Статус карточка */}
+        {/* Статус */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <div style={{ flex: 1, background: '#f9fafb', borderRadius: 12, padding: '10px 14px' }}>
             <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Остаток</div>
@@ -384,62 +389,50 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
               <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
                 <div className="spinner" style={{ width: 28, height: 28 }} />
               </div>
-            ) : info ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {info.mnn && (
-                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>МНН (международное название)</div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.mnn}</div>
-                  </div>
-                )}
-                {info.formName && (
-                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Форма выпуска</div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.formName}{info.dosage ? ` · ${info.dosage}` : ''}</div>
-                  </div>
-                )}
-                {info.producerName && (
-                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Производитель</div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.producerName}</div>
-                  </div>
-                )}
-                {info.atcCode && (
-                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>АТХ группа</div>
-                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.atcCode}</div>
-                  </div>
-                )}
+            ) : wiki ? (
+              <div>
+                <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>
+                  {wiki.extract}
+                </p>
+                <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 12 }}>Источник: Wikipedia</p>
               </div>
             ) : (
               <p style={{ color: '#9ca3af', textAlign: 'center', padding: '24px 0', fontSize: 14 }}>
-                Информация не найдена в реестре ГРЛС
+                Описание не найдено в Wikipedia
               </p>
             )}
           </div>
         )}
 
-        {activeTab === 'instruction' && (
-          <div>
-            {loading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
-                <div className="spinner" style={{ width: 28, height: 28 }} />
+        {activeTab === 'links' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: '0 0 4px' }}>
+              Официальные источники с полной инструкцией по применению:
+            </p>
+            <a href={grlsUrl} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" width="18" height="18">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                </svg>
               </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
-                  Полная инструкция по применению доступна в Государственном реестре лекарственных средств.
-                </p>
-                <a href={grlsUrl} target="_blank" rel="noopener noreferrer"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', color: '#fff', textDecoration: 'none', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600 }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" width="16" height="16">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                    <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
-                  </svg>
-                  Открыть в ГРЛС
-                </a>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Реестр ГРЛС</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Минздрав России · Официальная инструкция</div>
               </div>
-            )}
+            </a>
+            <a href={rlsUrl} target="_blank" rel="noopener noreferrer"
+              style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" width="18" height="18">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>РЛС (rlsnet.ru)</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Справочник лекарственных средств</div>
+              </div>
+            </a>
           </div>
         )}
       </div>
