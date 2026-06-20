@@ -9,6 +9,9 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpZG53bW1od3J5aHdweGJvY3dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MDg0NzQsImV4cCI6MjA5MDk4NDQ3NH0.Jh329ywjiTRWrHdmMlV53sJtkvOB1ce5abXTbC6IvQk'
 );
 
+const GUEST_MAX_MEDICINES = 5;
+const GUEST_MAX_SCANS = 1;
+
 const getApiUrl = (endpoint) => `/api/${endpoint}`;
 
 const parseExpDate = (dateStr) => {
@@ -239,7 +242,7 @@ const PharmacySheet = ({ onClose }) => {
   );
 };
 
-const AuthScreen = ({ onAuth }) => {
+const AuthScreen = ({ onAuth, onGuest }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -283,6 +286,9 @@ const AuthScreen = ({ onAuth }) => {
         <button className="google-btn" onClick={handleGoogleSignIn} disabled={loading}>
           {loading ? <span>Вход...</span> : <><GoogleIcon />Войти через Google</>}
         </button>
+        <button className="guest-btn" onClick={onGuest}>
+          Попробовать без регистрации
+        </button>
       </div>
     </div>
   );
@@ -307,6 +313,50 @@ const OnboardingScreen = ({ onDone }) => {
         <label className="field-label">Аллергии / Заболевания</label>
         <input className="field-input" placeholder="Необязательно" value={allergy} onChange={e => setAllergy(e.target.value)} />
         <button className="primary-btn" onClick={handleSubmit} disabled={!name.trim()}>Войти</button>
+      </div>
+    </div>
+  );
+};
+
+const GuestRegisterSheet = ({ onClose, message, medicinesCount }) => {
+  const [loading, setLoading] = React.useState(false);
+  const handleSignIn = async () => {
+    setLoading(true);
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+  };
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet">
+        <div className="sheet-header">
+          <h2>Зарегистрируйтесь</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        <div className="guest-register-body">
+          <div className="guest-register-icon">
+            <svg viewBox="0 0 48 48" fill="none" width="56" height="56">
+              <circle cx="24" cy="24" r="24" fill="#f0fdf4"/>
+              <path d="M24 14a5 5 0 1 1 0 10 5 5 0 0 1 0-10z" fill="#16a34a"/>
+              <path d="M14 34c0-5.5 4.5-9 10-9s10 3.5 10 9" stroke="#16a34a" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <p className="guest-register-msg">
+            {message || 'Зарегистрируйтесь, чтобы сохранить ваши данные и получить полный доступ.'}
+          </p>
+          {medicinesCount > 0 && (
+            <div className="guest-transfer-notice">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="16" height="16">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              {medicinesCount} {medicinesCount === 1 ? 'лекарство будет перенесено' : medicinesCount < 5 ? 'лекарства будут перенесены' : 'лекарств будут перенесены'} в ваш аккаунт
+            </div>
+          )}
+          <button className="google-btn" onClick={handleSignIn} disabled={loading} style={{ marginTop: 8 }}>
+            {loading ? <span>Вход...</span> : <><GoogleIcon />Войти через Google</>}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -348,6 +398,9 @@ const App = () => {
   const [userId, setUserId] = useState(null);
   const [userEmail, setUserEmail] = useState('');
   const touchStartX = useRef(null);
+  const [guestScanCount, setGuestScanCount] = useState(0);
+  const [showGuestRegister, setShowGuestRegister] = useState(false);
+  const [guestLimitMessage, setGuestLimitMessage] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -361,8 +414,47 @@ const App = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const isGuest = authStep === 'guest';
+
+  const initGuest = () => {
+    try {
+      const storedMeds = sessionStorage.getItem('guest_medicines');
+      const storedIntakes = sessionStorage.getItem('guest_intakes');
+      const storedScanCount = sessionStorage.getItem('guest_scan_count');
+      setMedicines(storedMeds ? JSON.parse(storedMeds) : []);
+      setIntakes(storedIntakes ? JSON.parse(storedIntakes) : []);
+      setGuestScanCount(storedScanCount ? parseInt(storedScanCount) : 0);
+    } catch { }
+    setAuthStep('guest');
+  };
+
   const loadUserData = async (uid) => {
     try {
+      // Миграция гостевых данных при регистрации
+      try {
+        const guestMedsRaw = sessionStorage.getItem('guest_medicines');
+        const guestIntakesRaw = sessionStorage.getItem('guest_intakes');
+        if (guestMedsRaw) {
+          const guestMeds = JSON.parse(guestMedsRaw);
+          if (guestMeds.length > 0) {
+            await supabase.from('medicines').insert(
+              guestMeds.map(m => ({ user_id: uid, name: m.name, exp_date: m.expDate, quantity: m.quantity }))
+            );
+          }
+          sessionStorage.removeItem('guest_medicines');
+          sessionStorage.removeItem('guest_scan_count');
+        }
+        if (guestIntakesRaw) {
+          const guestIntakes = JSON.parse(guestIntakesRaw);
+          if (guestIntakes.length > 0) {
+            await supabase.from('intakes').insert(
+              guestIntakes.map(i => ({ user_id: uid, name: i.name, time: i.time, qty: i.qty, done: false }))
+            );
+          }
+          sessionStorage.removeItem('guest_intakes');
+        }
+      } catch { }
+
       const { data: prof } = await supabase.from('profiles').select('*').eq('user_id', uid).maybeSingle();
       if (prof) {
         setProfile({ name: prof.name || '', allergy: prof.allergy || '' });
@@ -414,6 +506,20 @@ const App = () => {
 
   const handleManualAdd = async () => {
     if (!manualName.trim()) return;
+    if (isGuest) {
+      if (medicines.length >= GUEST_MAX_MEDICINES) {
+        setGuestLimitMessage(`Вы добавили максимум ${GUEST_MAX_MEDICINES} лекарств. Зарегистрируйтесь, чтобы добавить больше.`);
+        setShowGuestRegister(true);
+        setManualOpen(false);
+        return;
+      }
+      const newMed = { id: Date.now(), name: manualName.trim(), expDate: manualExp || null, quantity: manualQty };
+      const updated = [newMed, ...medicines];
+      setMedicines(updated);
+      try { sessionStorage.setItem('guest_medicines', JSON.stringify(updated)); } catch { }
+      setManualOpen(false);
+      return;
+    }
     const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
     const { data, error } = await supabase.from('medicines').insert({
       user_id: uid, name: manualName.trim(), exp_date: manualExp || null, quantity: manualQty,
@@ -427,7 +533,14 @@ const App = () => {
     setManualOpen(false);
   };
 
-  const openScanner = () => { setScanResult(null); setScanError(null); setAddQty(15); setScannerOpen(true); setTimeout(() => startScanner(), 200); };
+  const openScanner = () => {
+    if (isGuest && guestScanCount >= GUEST_MAX_SCANS) {
+      setGuestLimitMessage('В гостевом режиме доступно только 1 сканирование. Зарегистрируйтесь для неограниченного доступа.');
+      setShowGuestRegister(true);
+      return;
+    }
+    setScanResult(null); setScanError(null); setAddQty(15); setScannerOpen(true); setTimeout(() => startScanner(), 200);
+  };
   const closeScanner = () => { stopScanner(); setScanResult(null); setScanError(null); setScannerOpen(false); };
 
   const startScanner = async () => {
@@ -490,6 +603,27 @@ const App = () => {
 
   const handleAddMedicine = async () => {
     if (!scanResult) return;
+    if (isGuest) {
+      if (medicines.length >= GUEST_MAX_MEDICINES) {
+        setGuestLimitMessage(`Вы добавили максимум ${GUEST_MAX_MEDICINES} лекарств. Зарегистрируйтесь, чтобы добавить больше.`);
+        setShowGuestRegister(true);
+        closeScanner();
+        return;
+      }
+      const d = scanResult?.data || {};
+      const drugs = d.drugsData || {};
+      const name = d.productName || drugs.prodDescLabel || 'Неизвестное лекарство';
+      const expDate = d.expDate || drugs.expirationDate || null;
+      const newMed = { id: Date.now(), name, expDate, quantity: addQty };
+      const updated = [newMed, ...medicines];
+      setMedicines(updated);
+      try { sessionStorage.setItem('guest_medicines', JSON.stringify(updated)); } catch { }
+      const newCount = guestScanCount + 1;
+      setGuestScanCount(newCount);
+      try { sessionStorage.setItem('guest_scan_count', String(newCount)); } catch { }
+      closeScanner();
+      return;
+    }
     const d = scanResult?.data || {};
     const drugs = d.drugsData || {};
     const name = d.productName || drugs.prodDescLabel || 'Неизвестное лекарство';
@@ -516,6 +650,13 @@ const App = () => {
   };
 
   const deleteMedicine = async (id) => {
+    if (isGuest) {
+      setSwipedMedId(null);
+      const updated = medicines.filter(m => m.id !== id);
+      setMedicines(updated);
+      try { sessionStorage.setItem('guest_medicines', JSON.stringify(updated)); } catch { }
+      return;
+    }
     setSwipedMedId(null);
     setDeletingMeds(prev => new Set(prev).add(id));
     await supabase.from('medicines').delete().eq('id', id);
@@ -529,6 +670,14 @@ const App = () => {
 
   const handleAddIntake = async () => {
     if (!intakeName.trim()) return;
+    if (isGuest) {
+      const newIntake = { id: Date.now(), name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false };
+      const updated = [newIntake, ...intakes];
+      setIntakes(updated);
+      try { sessionStorage.setItem('guest_intakes', JSON.stringify(updated)); } catch { }
+      setIntakeName(''); setIntakeTime(''); setIntakeQty(1); setAddIntakeOpen(false);
+      return;
+    }
     const { data, error } = await supabase.from('intakes').insert({
       user_id: userId, name: intakeName.trim(), time: intakeTime || '--:--', qty: intakeQty, done: false,
     }).select().single();
@@ -542,12 +691,26 @@ const App = () => {
     const intake = intakes.find(i => i.id === id);
     if (!intake) return;
     const newDone = !intake.done;
+    if (isGuest) {
+      const updated = intakes.map(i => i.id === id ? { ...i, done: newDone } : i);
+      setIntakes(updated);
+      try { sessionStorage.setItem('guest_intakes', JSON.stringify(updated)); } catch { }
+      setSwipedIntakeId(null);
+      return;
+    }
     setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: newDone } : i));
     setSwipedIntakeId(null);
     await supabase.from('intakes').update({ done: newDone }).eq('id', id);
   };
 
   const closeSchedule = () => {
+    if (isGuest) {
+      const updated = intakes.filter(i => !i.done);
+      setIntakes(updated);
+      try { sessionStorage.setItem('guest_intakes', JSON.stringify(updated)); } catch { }
+      setActiveTab('home');
+      return;
+    }
     const doneIds = intakes.filter(i => i.done).map(i => i.id);
     if (doneIds.length > 0) supabase.from('intakes').delete().in('id', doneIds);
     setIntakes(prev => prev.filter(i => !i.done));
@@ -555,6 +718,13 @@ const App = () => {
   };
 
   const deleteIntake = async (id) => {
+    if (isGuest) {
+      setSwipedIntakeId(null);
+      const updated = intakes.filter(i => i.id !== id);
+      setIntakes(updated);
+      try { sessionStorage.setItem('guest_intakes', JSON.stringify(updated)); } catch { }
+      return;
+    }
     setSwipedIntakeId(null);
     setDeletingIntakes(prev => new Set(prev).add(id));
     await supabase.from('intakes').delete().eq('id', id);
@@ -571,7 +741,7 @@ const App = () => {
   if (authStep === 'login') {
     return <AuthScreen onAuth={async (user) => {
       await loadUserData(user.uid);
-    }} />;
+    }} onGuest={initGuest} />;
   }
 
   if (authStep === 'onboarding') {
@@ -587,8 +757,8 @@ const App = () => {
     <div className="app" onClick={() => { setSwipedMedId(null); setSwipedIntakeId(null); }}>
       <div className="home">
         <div className="home-header">
-          <h1 className="greeting">Привет, {profile.name || 'друг'}</h1>
-          <button className="avatar" onClick={openProfile}>
+          <h1 className="greeting">{isGuest ? 'Гостевой режим' : `Привет, ${profile.name || 'друг'}`}</h1>
+          <button className="avatar" onClick={isGuest ? () => { setGuestLimitMessage(''); setShowGuestRegister(true); } : openProfile}>
             {avatar
               ? <img src={avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
               : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="22" height="22">
@@ -858,7 +1028,12 @@ const App = () => {
             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
             {!scanResult && !scanError && (
               <>
-                <p className="scan-hint">Наведите камеру на Честный Знак с упаковки лекарства.</p>
+                {isGuest && guestScanCount === 0 && (
+              <div className="guest-scan-notice">
+                Гостевой режим: 1 бесплатное сканирование
+              </div>
+            )}
+            <p className="scan-hint">Наведите камеру на Честный Знак с упаковки лекарства.</p>
                 <div className="viewfinder">
                   <video ref={videoRef} playsInline />
                   {loading && <div className="loading-overlay"><div className="spinner" /></div>}
@@ -905,6 +1080,15 @@ const App = () => {
             )}
           </div>
         </div>
+      )}
+    </div>
+
+      {showGuestRegister && (
+        <GuestRegisterSheet
+          onClose={() => { setShowGuestRegister(false); setGuestLimitMessage(''); }}
+          message={guestLimitMessage}
+          medicinesCount={medicines.length}
+        />
       )}
     </div>
   );

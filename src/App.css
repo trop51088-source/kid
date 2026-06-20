@@ -996,3 +996,61 @@ input[type="date"].field-input {
   color: #333;
   -webkit-appearance: none;
 }
+
+/* ── GUEST MODE ── */
+.guest-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 15px;
+  background: transparent;
+  color: #6b7280;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.guest-btn:active { background: #f3f4f6; }
+
+.guest-register-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 4px;
+}
+.guest-register-icon { margin-bottom: 4px; }
+.guest-register-msg {
+  font-size: 15px;
+  color: #374151;
+  text-align: center;
+  line-height: 1.5;
+  margin: 0;
+}
+.guest-transfer-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  width: 100%;
+  box-sizing: border-box;
+}
+.guest-scan-notice {
+  background: #fefce8;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 6px;
+}
