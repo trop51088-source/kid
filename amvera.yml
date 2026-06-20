@@ -3,7 +3,7 @@ meta:
   toolchain: npm
 build:
   skip: false
-  additionalCommands: npm run build
+  additionalCommands: npm install && npm run build
 run:
-  command: npx serve -s dist -l 80
+  command: node server.js
   containerPort: 80

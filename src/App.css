@@ -1054,3 +1054,11 @@ input[type="date"].field-input {
   text-align: center;
   margin-bottom: 6px;
 }
+
+/* ── MEDICINE DETAIL ── */
+.med-card {
+  cursor: pointer;
+}
+.med-card:active {
+  opacity: 0.85;
+}

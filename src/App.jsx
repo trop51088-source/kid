@@ -318,6 +318,135 @@ const OnboardingScreen = ({ onDone }) => {
   );
 };
 
+const MedicineDetailSheet = ({ medicine, onClose }) => {
+  const [info, setInfo] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [activeTab, setActiveTab] = React.useState('info');
+
+  React.useEffect(() => {
+    if (!medicine) return;
+    setLoading(true);
+    setInfo(null);
+    fetch(`/api/medicine-info?name=${encodeURIComponent(medicine.name)}`)
+      .then(r => r.json())
+      .then(data => {
+        const rows = data.rows || data.data || [];
+        setInfo(rows[0] || null);
+      })
+      .catch(() => setInfo(null))
+      .finally(() => setLoading(false));
+  }, [medicine]);
+
+  const expired = isExpired(medicine.expDate);
+  const low = medicine.quantity <= 5;
+  const grlsUrl = `https://grls.rosminzdrav.ru/grls/?t=reestr&n=medicines&search_filter=${encodeURIComponent(medicine.name)}`;
+
+  const tabs = [
+    { id: 'info', label: 'Общее' },
+    { id: 'instruction', label: 'Инструкция' },
+  ];
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+        <div className="sheet-header">
+          <h2 style={{ fontSize: 17, lineHeight: 1.3, paddingRight: 8 }}>{medicine.name}</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+
+        {/* Статус карточка */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, background: '#f9fafb', borderRadius: 12, padding: '10px 14px' }}>
+            <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Остаток</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: low ? '#ef4444' : '#111' }}>{medicine.quantity} шт</div>
+          </div>
+          <div style={{ flex: 1, background: '#f9fafb', borderRadius: 12, padding: '10px 14px' }}>
+            <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Срок годности</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: expired ? '#ef4444' : '#111' }}>{formatDate(medicine.expDate)}</div>
+          </div>
+        </div>
+
+        {/* Табы */}
+        <div style={{ display: 'flex', gap: 4, background: '#f3f4f6', borderRadius: 10, padding: 4, marginBottom: 16 }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
+              flex: 1, padding: '8px', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              background: activeTab === t.id ? '#fff' : 'transparent',
+              color: activeTab === t.id ? '#111' : '#6b7280',
+              boxShadow: activeTab === t.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+            }}>{t.label}</button>
+          ))}
+        </div>
+
+        {activeTab === 'info' && (
+          <div>
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+                <div className="spinner" style={{ width: 28, height: 28 }} />
+              </div>
+            ) : info ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {info.mnn && (
+                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>МНН (международное название)</div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.mnn}</div>
+                  </div>
+                )}
+                {info.formName && (
+                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Форма выпуска</div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.formName}{info.dosage ? ` · ${info.dosage}` : ''}</div>
+                  </div>
+                )}
+                {info.producerName && (
+                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Производитель</div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.producerName}</div>
+                  </div>
+                )}
+                {info.atcCode && (
+                  <div style={{ background: '#f9fafb', borderRadius: 12, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>АТХ группа</div>
+                    <div style={{ fontSize: 15, fontWeight: 500, color: '#111' }}>{info.atcCode}</div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p style={{ color: '#9ca3af', textAlign: 'center', padding: '24px 0', fontSize: 14 }}>
+                Информация не найдена в реестре ГРЛС
+              </p>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'instruction' && (
+          <div>
+            {loading ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+                <div className="spinner" style={{ width: 28, height: 28 }} />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
+                  Полная инструкция по применению доступна в Государственном реестре лекарственных средств.
+                </p>
+                <a href={grlsUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: '#111', color: '#fff', textDecoration: 'none', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" width="16" height="16">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                  Открыть в ГРЛС
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const GuestRegisterSheet = ({ onClose, message, medicinesCount }) => {
   const [loading, setLoading] = React.useState(false);
   const handleSignIn = async () => {
@@ -398,6 +527,7 @@ const App = () => {
   const [userId, setUserId] = useState(null);
   const [userEmail, setUserEmail] = useState('');
   const touchStartX = useRef(null);
+  const [selectedMed, setSelectedMed] = useState(null);
   const [guestScanCount, setGuestScanCount] = useState(0);
   const [showGuestRegister, setShowGuestRegister] = useState(false);
   const [guestLimitMessage, setGuestLimitMessage] = useState('');
@@ -788,6 +918,7 @@ const App = () => {
                   <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}><CloseIcon /></button>
                   <div
                     className={`med-card${open ? ' swiped' : ''}`}
+                    onClick={e => { if (!open) { e.stopPropagation(); setSelectedMed(med); } }}
                     onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
                     onTouchMove={e => { const dx = e.touches[0].clientX - touchStartX.current; if (dx < -10 && !open) e.stopPropagation(); }}
                     onTouchEnd={e => { const dx = e.changedTouches[0].clientX - touchStartX.current; if (dx < -40) setSwipedMedId(med.id); else if (dx > 30) setSwipedMedId(null); }}
@@ -1081,6 +1212,13 @@ const App = () => {
           </div>
         </div>
       )}
+      {selectedMed && (
+        <MedicineDetailSheet
+          medicine={selectedMed}
+          onClose={() => setSelectedMed(null)}
+        />
+      )}
+
       {showGuestRegister && (
         <GuestRegisterSheet
           onClose={() => { setShowGuestRegister(false); setGuestLimitMessage(''); }}
