@@ -6,47 +6,50 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 80;
 
-// Статические файлы
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Прокси к GRLS — поиск по названию
 app.get('/api/medicine-info', async (req, res) => {
   const { name } = req.query;
-  if (!name) return res.json({ error: 'No name provided' });
+  if (!name) return res.json({ error: 'No name' });
 
-  try {
-    const searchUrl = `https://grls.rosminzdrav.ru/GRLS/v2/Medicines/SearchAsync?nameLp=${encodeURIComponent(name)}&pageSize=5&pageNum=1`;
-    const response = await fetch(searchUrl, {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-    });
+  const headers = {
+    'Accept': 'application/json, text/plain, */*',
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
+    'Referer': 'https://grls.rosminzdrav.ru/',
+    'Origin': 'https://grls.rosminzdrav.ru',
+  };
 
-    if (!response.ok) throw new Error(`GRLS returned ${response.status}`);
-    const data = await response.json();
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+  const endpoints = [
+    `https://grls.rosminzdrav.ru/GRLS/v2/Medicines/SearchAsync?nameLp=${encodeURIComponent(name)}&pageSize=5&pageNum=1`,
+    `https://grls.rosminzdrav.ru/GRLS/v2/Medicines/SearchAsync?mnn=${encodeURIComponent(name)}&pageSize=5&pageNum=1`,
+    `https://grls.rosminzdrav.ru/GRLS/v2/Medicines/SearchAsync?name=${encodeURIComponent(name)}&pageSize=5&pageNum=1`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, {
+        headers,
+        signal: AbortSignal.timeout(8000),
+      });
+      const text = await response.text();
+      console.log(`[GRLS] ${response.status} ${url.substring(0, 80)} → ${text.substring(0, 300)}`);
+      if (!response.ok) continue;
+      try {
+        const data = JSON.parse(text);
+        // Нормализуем структуру ответа
+        const rows = data.rows || data.data || data.medicines || (Array.isArray(data) ? data : []);
+        if (rows.length > 0) return res.json({ ok: true, rows });
+      } catch { continue; }
+    } catch (e) {
+      console.error('[GRLS] fetch error:', e.message);
+    }
   }
+
+  res.json({ ok: false, rows: [] });
 });
 
-// Прокси к GRLS — инструкция по ID
-app.get('/api/medicine-instruction/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const url = `https://grls.rosminzdrav.ru/GRLS/v2/Medicines/${id}/InstructionText`;
-    const response = await fetch(url, {
-      headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-    });
-    if (!response.ok) throw new Error(`GRLS returned ${response.status}`);
-    const data = await response.json();
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// SPA fallback
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server on port ${PORT}`));

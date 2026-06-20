@@ -330,7 +330,7 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
     fetch(`/api/medicine-info?name=${encodeURIComponent(medicine.name)}`)
       .then(r => r.json())
       .then(data => {
-        const rows = data.rows || data.data || [];
+        const rows = data.rows || [];
         setInfo(rows[0] || null);
       })
       .catch(() => setInfo(null))
