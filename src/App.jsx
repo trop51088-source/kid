@@ -724,21 +724,22 @@ const App = () => {
   const handleShare = async () => {
     setShareLoading(true);
     try {
-      const { data: existing } = await supabase.from('shared_lists')
+      const { data: existing, error: selErr } = await supabase.from('shared_lists')
         .select('id').eq('user_id', userId).maybeSingle();
       let id;
       if (existing) {
         id = existing.id;
       } else {
         id = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
-        await supabase.from('shared_lists').insert({ id, user_id: userId });
+        const { error: insErr } = await supabase.from('shared_lists').insert({ id, user_id: userId });
+        if (insErr) { console.error('Share insert error:', insErr); setShareLoading(false); return; }
       }
       const url = `${window.location.origin}/share/${id}`;
       setShareLink(url);
       try { await navigator.clipboard.writeText(url); } catch {}
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 3000);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error('Share error:', e); }
     setShareLoading(false);
   };
 
