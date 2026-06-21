@@ -498,6 +498,107 @@ const GuestRegisterSheet = ({ onClose, message, medicinesCount }) => {
   );
 };
 
+const SharePage = ({ shareId }) => {
+  const [owner, setOwner] = React.useState(null);
+  const [meds, setMeds] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [notFound, setNotFound] = React.useState(false);
+
+  React.useEffect(() => {
+    (async () => {
+      const { data: share, error } = await supabase
+        .from('shared_lists').select('user_id').eq('id', shareId).maybeSingle();
+      if (error || !share) { setNotFound(true); setLoading(false); return; }
+      const [{ data: prof }, { data: medicines }] = await Promise.all([
+        supabase.from('profiles').select('name').eq('id', share.user_id).maybeSingle(),
+        supabase.from('medicines').select('*').eq('user_id', share.user_id).order('name'),
+      ]);
+      setOwner(prof?.name || 'Пользователь');
+      setMeds(medicines || []);
+      setLoading(false);
+    })();
+  }, [shareId]);
+
+  const fmt = str => {
+    if (!str) return '—';
+    return new Date(str).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+  };
+  const isExp = d => d && new Date(d) < new Date();
+  const isSoon = d => { if (!d) return false; const diff = (new Date(d) - new Date()) / 86400000; return diff >= 0 && diff <= 30; };
+  const plural = n => n === 1 ? 'препарат' : n < 5 ? 'препарата' : 'препаратов';
+
+  if (loading) return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div className="spinner" />
+    </div>
+  );
+
+  if (notFound) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 12, padding: 24, textAlign: 'center', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }}>
+      <div style={{ fontSize: 52 }}>🔗</div>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: '#111', margin: 0 }}>Ссылка недействительна</h2>
+      <p style={{ color: '#6b7280', fontSize: 14, margin: 0 }}>Возможно, владелец отозвал доступ</p>
+      <a href="/" style={{ marginTop: 8, background: '#111', color: '#fff', borderRadius: 14, padding: '12px 24px', textDecoration: 'none', fontSize: 15, fontWeight: 600 }}>Открыть MyPillBox</a>
+    </div>
+  );
+
+  return (
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '28px 16px 48px', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <div style={{ width: 46, height: 46, borderRadius: 14, background: '#111', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" width="22" height="22">
+            <path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4"/>
+            <rect x="9" y="1" width="6" height="4" rx="1"/>
+            <line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>
+          </svg>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Аптечка пользователя</div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: '#111' }}>{owner}</div>
+        </div>
+      </div>
+
+      {/* Count */}
+      <div style={{ background: '#f3f4f6', borderRadius: 12, padding: '10px 14px', marginBottom: 18, fontSize: 14, color: '#6b7280' }}>
+        {meds.length === 0 ? 'Аптечка пуста' : `${meds.length} ${plural(meds.length)}`}
+        {meds.filter(m => isExp(m.exp_date)).length > 0 && (
+          <span style={{ marginLeft: 10, color: '#ef4444', fontWeight: 600 }}>· {meds.filter(m => isExp(m.exp_date)).length} просрочено</span>
+        )}
+      </div>
+
+      {/* List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
+        {meds.map(med => {
+          const exp = isExp(med.exp_date);
+          const soon = isSoon(med.exp_date);
+          return (
+            <div key={med.id} style={{ background: '#fff', border: `1.5px solid ${exp ? '#fecaca' : soon ? '#fde68a' : '#f3f4f6'}`, borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: '#111', flex: 1 }}>{med.name}</div>
+                {med.quantity <= 5 && <span style={{ background: '#fef2f2', color: '#ef4444', fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0 }}>Мало</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 6, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Остаток: <strong style={{ color: med.quantity <= 5 ? '#ef4444' : '#374151' }}>{med.quantity} шт</strong></div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Годен до: <strong style={{ color: exp ? '#ef4444' : soon ? '#f59e0b' : '#374151' }}>{fmt(med.exp_date)}</strong></div>
+              </div>
+              {exp && <div style={{ marginTop: 5, fontSize: 11, color: '#ef4444', fontWeight: 600 }}>⚠ Срок годности истёк</div>}
+              {soon && !exp && <div style={{ marginTop: 5, fontSize: 11, color: '#f59e0b', fontWeight: 600 }}>⚠ Истекает в ближайшие 30 дней</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* CTA */}
+      <div style={{ background: '#111', borderRadius: 20, padding: '22px 20px', textAlign: 'center' }}>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 17, marginBottom: 6 }}>Ведёте приём лекарств?</div>
+        <div style={{ color: '#9ca3af', fontSize: 13, marginBottom: 16 }}>Создайте свою аптечку в MyPillBox — бесплатно</div>
+        <a href="/" style={{ display: 'inline-block', background: '#fff', color: '#111', borderRadius: 12, padding: '11px 28px', textDecoration: 'none', fontSize: 15, fontWeight: 700 }}>Попробовать →</a>
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [authStep, setAuthStep] = useState('loading');
   const [activeTab, setActiveTab] = useState('home');
@@ -538,6 +639,9 @@ const App = () => {
   const [guestScanCount, setGuestScanCount] = useState(0);
   const [showGuestRegister, setShowGuestRegister] = useState(false);
   const [guestLimitMessage, setGuestLimitMessage] = useState('');
+  const [shareLink, setShareLink] = useState('');
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -615,6 +719,27 @@ const App = () => {
 
   const saveProfileToSupabase = async (uid, data) => {
     await supabase.from('profiles').upsert({ user_id: uid, name: data.name, allergy: data.allergy }, { onConflict: 'user_id' });
+  };
+
+  const handleShare = async () => {
+    setShareLoading(true);
+    try {
+      const { data: existing } = await supabase.from('shared_lists')
+        .select('id').eq('user_id', userId).maybeSingle();
+      let id;
+      if (existing) {
+        id = existing.id;
+      } else {
+        id = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+        await supabase.from('shared_lists').insert({ id, user_id: userId });
+      }
+      const url = `${window.location.origin}/share/${id}`;
+      setShareLink(url);
+      try { await navigator.clipboard.writeText(url); } catch {}
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 3000);
+    } catch (e) { console.error(e); }
+    setShareLoading(false);
   };
 
   const openProfile = () => {
@@ -890,6 +1015,9 @@ const App = () => {
     }} />;
   }
 
+  const shareMatch = window.location.pathname.match(/^\/share\/([a-zA-Z0-9]+)$/);
+  if (shareMatch) return <SharePage shareId={shareMatch[1]} />;
+
   return (
     <div className="app" onClick={() => { setSwipedMedId(null); setSwipedIntakeId(null); }}>
       <div className="home">
@@ -1112,6 +1240,20 @@ const App = () => {
               </button>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button onClick={handleShare} disabled={shareLoading} style={{ width: '100%', background: '#f0fdf4', color: shareCopied ? '#16a34a' : '#15803d', border: '1.5px solid #bbf7d0', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }}>
+                  {shareLoading
+                    ? <div className="spinner" style={{ width: 16, height: 16, borderColor: '#16a34a', borderTopColor: 'transparent' }} />
+                    : shareCopied
+                      ? <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                      : <svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="16" height="16"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  }
+                  {shareCopied ? 'Ссылка скопирована!' : 'Поделиться аптечкой'}
+                </button>
+                {shareLink && (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: '#15803d', wordBreak: 'break-all', lineHeight: 1.5 }}>
+                    {shareLink}
+                  </div>
+                )}
                 <button onClick={() => { setProfileName(profile.name || ''); setProfileAllergy(profile.allergy || ''); setProfileEdit(true); }} style={{ width: '100%', background: '#f3f4f6', color: '#111', border: 'none', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5" width="16" height="16">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
