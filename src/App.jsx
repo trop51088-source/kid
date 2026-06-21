@@ -743,7 +743,17 @@ const App = () => {
       }
       const url = `${window.location.origin}/share/${id}`;
       setShareLink(url);
-      try { await navigator.clipboard.writeText(url); } catch {}
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+      } catch {}
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 3000);
     } catch (e) { console.error('Share error:', e); }
@@ -1004,6 +1014,10 @@ const App = () => {
     }, 350);
   };
 
+  // Public share page — no auth needed
+  const shareMatch = window.location.pathname.match(/^\/share\/([a-zA-Z0-9]+)$/);
+  if (shareMatch) return <SharePage shareId={shareMatch[1]} />;
+
   if (authStep === 'loading') {
     return <div className="auth-screen"><div className="spinner" style={{ width: 40, height: 40, margin: 'auto' }} /></div>;
   }
@@ -1022,9 +1036,6 @@ const App = () => {
       setAuthStep('done');
     }} />;
   }
-
-  const shareMatch = window.location.pathname.match(/^\/share\/([a-zA-Z0-9]+)$/);
-  if (shareMatch) return <SharePage shareId={shareMatch[1]} />;
 
   return (
     <div className="app" onClick={() => { setSwipedMedId(null); setSwipedIntakeId(null); }}>
