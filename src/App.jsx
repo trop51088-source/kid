@@ -505,6 +505,13 @@ const SharePage = ({ shareId }) => {
   const [notFound, setNotFound] = React.useState(false);
 
   React.useEffect(() => {
+    // Allow body scroll for this standalone page
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'auto';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  React.useEffect(() => {
     (async () => {
       const { data: share, error } = await supabase
         .from('shared_lists').select('user_id').eq('id', shareId).maybeSingle();
@@ -513,7 +520,7 @@ const SharePage = ({ shareId }) => {
         supabase.from('profiles').select('name').eq('id', share.user_id).maybeSingle(),
         supabase.from('medicines').select('*').eq('user_id', share.user_id).order('name'),
       ]);
-      setOwner(prof?.name || 'Пользователь');
+      setOwner(prof?.name || null);
       setMeds(medicines || []);
       setLoading(false);
     })();
