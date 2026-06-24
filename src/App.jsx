@@ -1128,6 +1128,7 @@ const App = () => {
           ) : (
             filteredMeds.map(med => {
               const expired = isExpired(med.expDate);
+              const soon = !expired && med.expDate && (new Date(med.expDate) - new Date()) / 86400000 <= 30;
                       const open = swipedMedId === med.id;
               const deleting = deletingMeds.has(med.id);
               return (
@@ -1140,13 +1141,13 @@ const App = () => {
                     onTouchMove={e => { const dx = e.touches[0].clientX - touchStartX.current; if (dx < -10 && !open) e.stopPropagation(); }}
                     onTouchEnd={e => { const dx = e.changedTouches[0].clientX - touchStartX.current; if (dx < -40) setSwipedMedId(med.id); else if (dx > 30) setSwipedMedId(null); }}
                   >
-                    <div className="med-top">
+                    <div className="med-info">
                       <span className="med-name">{med.name}</span>
-                      <span className={`badge ${expired ? 'badge-exp' : 'badge-ok'}`}>{expired ? 'Истек' : 'В норме'}</span>
+                      <span className="med-exp">{med.expDate ? `До ${formatDate(med.expDate)}` : 'Срок не указан'}</span>
                     </div>
-                    <div className="med-bottom">
-                      <span className="med-exp">До {formatDate(med.expDate)}</span>
-                    </div>
+                    <span className={`badge ${expired ? 'badge-exp' : soon ? 'badge-soon' : 'badge-ok'}`}>
+                      {expired ? 'Истёк' : soon ? 'Скоро' : 'В норме'}
+                    </span>
                   </div>
                 </div>
               );
