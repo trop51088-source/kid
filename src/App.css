@@ -115,9 +115,6 @@ body {
   z-index: 1;
   transform: translateX(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  display: flex;
-  align-items: center;
-  gap: 14px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   border: 1.5px solid #f0f0f0;
   box-sizing: border-box;
@@ -125,82 +122,43 @@ body {
 .med-card.swiped {
   transform: translateX(-56px);
 }
-.med-card--exp {
-  border-color: #fecaca;
-  background: #fff9f9;
-}
-.med-card--soon {
-  border-color: #fde68a;
-  background: #fffdf0;
-}
 
-.med-icon-wrap {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: #f3f4f6;
+.med-top {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #6b7280;
-}
-.med-card--exp .med-icon-wrap {
-  background: #fef2f2;
-  color: #ef4444;
-}
-.med-card--soon .med-icon-wrap {
-  background: #fffbeb;
-  color: #f59e0b;
-}
-
-.med-content {
-  flex: 1;
-  min-width: 0;
+  justify-content: space-between;
+  margin-bottom: 4px;
 }
 .med-name {
   font-size: 15px;
   font-weight: 700;
   color: #111;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 3px;
+  margin-right: 8px;
 }
-.med-meta {
+.med-bottom {
   display: flex;
   align-items: center;
-  gap: 6px;
 }
-.med-exp-text {
+.med-exp {
   font-size: 12px;
   color: #9ca3af;
   font-weight: 500;
 }
-.med-exp-text--exp {
-  color: #ef4444;
-  font-weight: 600;
-}
-.med-exp-text--none {
-  color: #d1d5db;
-}
 
-.med-chevron {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
   flex-shrink: 0;
 }
-.med-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.med-status-dot--ok   { background: #22c55e; }
-.med-status-dot--exp  { background: #ef4444; }
-.med-status-dot--soon { background: #f59e0b; }
-.med-status-dot--none { background: #d1d5db; }
+.badge-ok  { background: #dcfce7; color: #16a34a; }
+.badge-exp { background: #fee2e2; color: #dc2626; }
 
 .low-warning {
   margin-top: 8px;

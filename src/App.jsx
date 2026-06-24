@@ -1134,41 +1134,18 @@ const App = () => {
                 <div key={med.id} className={`med-row${deleting ? ' row-deleting' : ''}`}>
                   <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}><CloseIcon /></button>
                   <div
-                    className={`med-card${open ? ' swiped' : ''}${expired ? ' med-card--exp' : !med.expDate ? '' : (new Date(med.expDate) - new Date()) / 86400000 <= 30 ? ' med-card--soon' : ''}`}
+                    className={`med-card${open ? ' swiped' : ''}`}
                     onClick={e => { if (!open) { e.stopPropagation(); setSelectedMed(med); } }}
                     onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}
                     onTouchMove={e => { const dx = e.touches[0].clientX - touchStartX.current; if (dx < -10 && !open) e.stopPropagation(); }}
                     onTouchEnd={e => { const dx = e.changedTouches[0].clientX - touchStartX.current; if (dx < -40) setSwipedMedId(med.id); else if (dx > 30) setSwipedMedId(null); }}
                   >
-                    <div className="med-icon-wrap">
-                      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-                        <rect x="3" y="10" width="18" height="4" rx="2" fill="currentColor" opacity="0.15"/>
-                        <path d="M7 10V7a5 5 0 0 1 10 0v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                        <rect x="3" y="10" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2"/>
-                        <line x1="12" y1="14" x2="12" y2="18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                        <line x1="10" y1="16" x2="14" y2="16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      </svg>
+                    <div className="med-top">
+                      <span className="med-name">{med.name}</span>
+                      <span className={`badge ${expired ? 'badge-exp' : 'badge-ok'}`}>{expired ? 'Истек' : 'В норме'}</span>
                     </div>
-                    <div className="med-content">
-                      <div className="med-name">{med.name}</div>
-                      <div className="med-meta">
-                        {med.expDate
-                          ? expired
-                            ? <span className="med-exp-text med-exp-text--exp">Истёк {formatDate(med.expDate)}</span>
-                            : <span className="med-exp-text">до {formatDate(med.expDate)}</span>
-                          : <span className="med-exp-text med-exp-text--none">Срок не указан</span>
-                        }
-                      </div>
-                    </div>
-                    <div className="med-chevron">
-                      {expired
-                        ? <span className="med-status-dot med-status-dot--exp"/>
-                        : !med.expDate ? <span className="med-status-dot med-status-dot--none"/>
-                        : (new Date(med.expDate) - new Date()) / 86400000 <= 30
-                          ? <span className="med-status-dot med-status-dot--soon"/>
-                          : <span className="med-status-dot med-status-dot--ok"/>
-                      }
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14" style={{color:'#d1d5db'}}><polyline points="9 18 15 12 9 6"/></svg>
+                    <div className="med-bottom">
+                      <span className="med-exp">До {formatDate(med.expDate)}</span>
                     </div>
                   </div>
                 </div>
