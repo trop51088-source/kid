@@ -321,7 +321,6 @@ const OnboardingScreen = ({ onDone }) => {
 const MedicineDetailSheet = ({ medicine, onClose }) => {
   const [drugInfo, setDrugInfo] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState('info');
 
   React.useEffect(() => {
     if (!medicine) return;
@@ -345,7 +344,7 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
   const grlsUrl = `https://grls.rosminzdrav.ru/grls/?t=reestr&n=medicines&search_filter=${encodeURIComponent(medicine.name)}`;
   const rlsUrl = `https://www.rlsnet.ru/search?q=${encodeURIComponent(medicine.name)}`;
 
-  const tabs = [{ id: 'info', label: 'Общее' }, { id: 'links', label: 'Инструкция' }];
+
 
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -367,88 +366,71 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
           </div>
         </div>
 
-        {/* Табы */}
-        <div style={{ display: 'flex', gap: 4, background: '#f3f4f6', borderRadius: 10, padding: 4, marginBottom: 16 }}>
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setActiveTab(t.id)} style={{
-              flex: 1, padding: '8px', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              background: activeTab === t.id ? '#fff' : 'transparent',
-              color: activeTab === t.id ? '#111' : '#6b7280',
-              boxShadow: activeTab === t.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            }}>{t.label}</button>
-          ))}
-        </div>
-
-        {activeTab === 'info' && (
-          <div>
-            {loading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
-                <div className="spinner" style={{ width: 28, height: 28 }} />
+        {/* Информация о препарате */}
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+            <div className="spinner" style={{ width: 28, height: 28 }} />
+          </div>
+        ) : drugInfo ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+            {drugInfo.group && <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: '#ede9fe', color: '#7c3aed', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>{drugInfo.group}</div>}
+            {drugInfo.forms && <div style={{ fontSize: 13, color: '#6b7280' }}>Формы выпуска: <strong>{drugInfo.forms}</strong></div>}
+            {drugInfo.description && <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0 }}>{drugInfo.description}</p>}
+            {drugInfo.indications && (
+              <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Показания</div>
+                <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.indications}</p>
               </div>
-            ) : drugInfo ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {drugInfo.group && <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: '#ede9fe', color: '#7c3aed', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>{drugInfo.group}</div>}
-                {drugInfo.forms && <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>Формы выпуска: <strong>{drugInfo.forms}</strong></div>}
-                {drugInfo.description && <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0 }}>{drugInfo.description}</p>}
-                {drugInfo.indications && (
-                  <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Показания</div>
-                    <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.indications}</p>
-                  </div>
-                )}
-                {drugInfo.contraindications && (
-                  <div style={{ background: '#fef2f2', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Противопоказания</div>
-                    <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.contraindications}</p>
-                  </div>
-                )}
-                {drugInfo.dosage && (
-                  <div style={{ background: '#eff6ff', borderRadius: 12, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Дозировка</div>
-                    <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.dosage}</p>
-                  </div>
-                )}
+            )}
+            {drugInfo.contraindications && (
+              <div style={{ background: '#fef2f2', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Противопоказания</div>
+                <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.contraindications}</p>
               </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '24px 0' }}>
-                <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 6 }}>Препарат не найден в базе</p>
-                <p style={{ color: '#c4b5fd', fontSize: 12 }}>Найдите инструкцию во вкладке «Инструкция»</p>
+            )}
+            {drugInfo.dosage && (
+              <div style={{ background: '#eff6ff', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ fontSize: 11, color: '#2563eb', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Дозировка</div>
+                <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.dosage}</p>
               </div>
             )}
           </div>
-        )}
-
-        {activeTab === 'links' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: '0 0 4px' }}>
-              Официальные источники с полной инструкцией по применению:
-            </p>
-            <a href={grlsUrl} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" width="18" height="18">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Реестр ГРЛС</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>Минздрав России · Официальная инструкция</div>
-              </div>
-            </a>
-            <a href={rlsUrl} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" width="18" height="18">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                </svg>
-              </div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>РЛС (rlsnet.ru)</div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>Справочник лекарственных средств</div>
-              </div>
-            </a>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 12 }}>
+            <p style={{ color: '#9ca3af', fontSize: 14, margin: 0 }}>Препарат не найден в базе</p>
           </div>
         )}
+
+        {/* Инструкция — внизу всегда */}
+        <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 13, color: '#9ca3af', fontWeight: 500, marginBottom: 2 }}>Официальная инструкция по применению</div>
+          <a href={grlsUrl} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" width="18" height="18">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>Реестр ГРЛС</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>Минздрав России</div>
+            </div>
+            <svg style={{ marginLeft: 'auto' }} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+          <a href={rlsUrl} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" width="18" height="18">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#111' }}>РЛС (rlsnet.ru)</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>Справочник лекарственных средств</div>
+            </div>
+            <svg style={{ marginLeft: 'auto' }} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+        </div>
       </div>
     </div>
   );
