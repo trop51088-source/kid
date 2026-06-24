@@ -1146,7 +1146,7 @@ const App = () => {
                       <span className="med-exp">{med.expDate ? `До ${formatDate(med.expDate)}` : 'Срок не указан'}</span>
                     </div>
                     <span className={`badge ${expired ? 'badge-exp' : soon ? 'badge-soon' : 'badge-ok'}`}>
-                      {expired ? 'Истёк' : soon ? 'Скоро' : 'В норме'}
+                      {expired ? 'Истёк' : soon ? 'Истекает' : 'В норме'}
                     </span>
                   </div>
                 </div>
