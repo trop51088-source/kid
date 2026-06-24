@@ -1271,14 +1271,28 @@ const App = () => {
                     Поделиться аптечкой
                   </button>
                 ) : (
-                  <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 14, padding: '12px 14px' }}>
-                    <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Ссылка для sharing</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ flex: 1, fontSize: 12, color: '#374151', wordBreak: 'break-all', lineHeight: 1.5 }}>{shareLink}</div>
-                      <button onClick={() => copyToClipboard(shareLink)} style={{ flexShrink: 0, background: shareCopied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>
+                  <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 14, padding: '14px' }}>
+                    <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Ссылка</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
+                        <div style={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', WebkitMaskImage: 'linear-gradient(to right, black 50%, transparent 100%)', maskImage: 'linear-gradient(to right, black 50%, transparent 100%)' }}>
+                          {shareLink}
+                        </div>
+                      </div>
+                      <button onClick={() => copyToClipboard(shareLink)} style={{ flexShrink: 0, background: shareCopied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>
                         {shareCopied ? '✓ Скопировано' : 'Скопировать'}
                       </button>
                     </div>
+                    {typeof navigator !== 'undefined' && navigator.share && (
+                      <button onClick={() => navigator.share({ url: shareLink, title: 'Моя аптечка — MyPillBox' }).catch(() => {})} style={{ width: '100%', background: '#fff', color: '#15803d', border: '1.5px solid #bbf7d0', borderRadius: 10, padding: '9px', fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, fontFamily: 'inherit' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="15" height="15">
+                          <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                          <polyline points="16 6 12 2 8 6"/>
+                          <line x1="12" y1="2" x2="12" y2="15"/>
+                        </svg>
+                        Отправить через...
+                      </button>
+                    )}
                   </div>
                 )}
                 <button onClick={() => { setProfileName(profile.name || ''); setProfileAllergy(profile.allergy || ''); setProfileEdit(true); }} style={{ width: '100%', background: '#f3f4f6', color: '#111', border: 'none', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
