@@ -728,10 +728,26 @@ const App = () => {
     await supabase.from('profiles').upsert({ user_id: uid, name: data.name, allergy: data.allergy }, { onConflict: 'user_id' });
   };
 
+  const copyToClipboard = (text) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).catch(() => {});
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    } catch {}
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2500);
+  };
+
   const handleShare = async () => {
     setShareLoading(true);
     try {
-      const { data: existing, error: selErr } = await supabase.from('shared_lists')
+      const { data: existing } = await supabase.from('shared_lists')
         .select('id').eq('user_id', userId).maybeSingle();
       let id;
       if (existing) {
@@ -743,19 +759,6 @@ const App = () => {
       }
       const url = `${window.location.origin}/share/${id}`;
       setShareLink(url);
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(url);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.focus(); ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-        }
-      } catch {}
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 3000);
     } catch (e) { console.error('Share error:', e); }
     setShareLoading(false);
   };
@@ -1259,18 +1262,23 @@ const App = () => {
               </button>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <button onClick={handleShare} disabled={shareLoading} style={{ width: '100%', background: '#f0fdf4', color: shareCopied ? '#16a34a' : '#15803d', border: '1.5px solid #bbf7d0', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, transition: 'all 0.2s' }}>
-                  {shareLoading
-                    ? <div className="spinner" style={{ width: 16, height: 16, borderColor: '#16a34a', borderTopColor: 'transparent' }} />
-                    : shareCopied
-                      ? <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                {!shareLink ? (
+                  <button onClick={handleShare} disabled={shareLoading} style={{ width: '100%', background: '#f0fdf4', color: '#15803d', border: '1.5px solid #bbf7d0', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    {shareLoading
+                      ? <div className="spinner" style={{ width: 16, height: 16, borderColor: '#16a34a', borderTopColor: 'transparent' }} />
                       : <svg viewBox="0 0 24 24" fill="none" stroke="#15803d" strokeWidth="2.5" width="16" height="16"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                  }
-                  {shareCopied ? 'Ссылка скопирована!' : 'Поделиться аптечкой'}
-                </button>
-                {shareLink && (
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: '#15803d', wordBreak: 'break-all', lineHeight: 1.5 }}>
-                    {shareLink}
+                    }
+                    Поделиться аптечкой
+                  </button>
+                ) : (
+                  <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: 14, padding: '12px 14px' }}>
+                    <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Ссылка для sharing</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ flex: 1, fontSize: 12, color: '#374151', wordBreak: 'break-all', lineHeight: 1.5 }}>{shareLink}</div>
+                      <button onClick={() => copyToClipboard(shareLink)} style={{ flexShrink: 0, background: shareCopied ? '#16a34a' : '#111', color: '#fff', border: 'none', borderRadius: 10, padding: '8px 12px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background 0.2s' }}>
+                        {shareCopied ? '✓ Скопировано' : 'Скопировать'}
+                      </button>
+                    </div>
                   </div>
                 )}
                 <button onClick={() => { setProfileName(profile.name || ''); setProfileAllergy(profile.allergy || ''); setProfileEdit(true); }} style={{ width: '100%', background: '#f3f4f6', color: '#111', border: 'none', borderRadius: 14, padding: '14px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
