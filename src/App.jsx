@@ -373,9 +373,6 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
           </div>
         ) : drugInfo ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
-            {drugInfo.group && <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: '#ede9fe', color: '#7c3aed', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>{drugInfo.group}</div>}
-            {drugInfo.forms && <div style={{ fontSize: 13, color: '#6b7280' }}>Формы выпуска: <strong>{drugInfo.forms}</strong></div>}
-            {drugInfo.description && <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, margin: 0 }}>{drugInfo.description}</p>}
             {drugInfo.indications && (
               <div style={{ background: '#f0fdf4', borderRadius: 12, padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Показания</div>
@@ -394,6 +391,13 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
                 <p style={{ fontSize: 13, color: '#374151', margin: 0, lineHeight: 1.6 }}>{drugInfo.dosage}</p>
               </div>
             )}
+            {(drugInfo.group || drugInfo.forms || drugInfo.description) && (
+              <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {drugInfo.group && <div style={{ display: 'inline-flex', alignSelf: 'flex-start', background: '#ede9fe', color: '#7c3aed', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>{drugInfo.group}</div>}
+                {drugInfo.forms && <div style={{ fontSize: 13, color: '#6b7280' }}>Формы выпуска: <strong>{drugInfo.forms}</strong></div>}
+                {drugInfo.description && <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>{drugInfo.description}</p>}
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '24px 0', marginBottom: 12 }}>
@@ -403,7 +407,10 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
 
         {/* Инструкция — внизу всегда */}
         <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, color: '#9ca3af', fontWeight: 500, marginBottom: 2 }}>Официальная инструкция по применению</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2.5" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <div style={{ fontSize: 15, color: '#111', fontWeight: 700 }}>Официальная инструкция</div>
+          </div>
           <a href={grlsUrl} target="_blank" rel="noopener noreferrer"
             style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '14px 16px', textDecoration: 'none', border: '1px solid #e5e7eb' }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
