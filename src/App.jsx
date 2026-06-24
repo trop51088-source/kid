@@ -595,6 +595,72 @@ const SharePage = ({ shareId }) => {
   );
 };
 
+const HistorySheet = ({ log, onClose }) => {
+  const grouped = React.useMemo(() => {
+    const map = {};
+    (log || []).forEach(entry => {
+      const d = new Date(entry.taken_at);
+      const key = d.toISOString().slice(0, 10);
+      if (!map[key]) map[key] = [];
+      map[key].push(entry);
+    });
+    return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [log]);
+
+  const formatDay = (isoDate) => {
+    const d = new Date(isoDate + 'T12:00:00');
+    const today = new Date(); today.setHours(12, 0, 0, 0);
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Сегодня';
+    if (d.toDateString() === yesterday.toDateString()) return 'Вчера';
+    return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', weekday: 'long' });
+  };
+
+  const formatTime = (iso) => new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="sheet" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+        <div className="sheet-header">
+          <h2>История приёмов</h2>
+          <button className="close-btn" onClick={onClose}>×</button>
+        </div>
+        {grouped.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+            <p style={{ color: '#9ca3af', fontSize: 15, margin: 0 }}>Пока нет записей</p>
+            <p style={{ color: '#c4b5fd', fontSize: 13, marginTop: 6 }}>Нажмите ✓ рядом с приёмом — появится запись</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {grouped.map(([date, entries]) => (
+              <div key={date}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                  {formatDay(date)}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {entries.map(e => (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 14, padding: '12px 14px' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#d1fae5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" width="18" height="18"><polyline points="20 6 9 17 4 12"/></svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.medicine_name}</div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{e.qty} шт</div>
+                      </div>
+                      <div style={{ fontSize: 13, color: '#9ca3af', fontWeight: 500, flexShrink: 0 }}>{formatTime(e.taken_at)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const App = () => {
   const [authStep, setAuthStep] = useState('loading');
   const [activeTab, setActiveTab] = useState('home');
@@ -635,6 +701,8 @@ const App = () => {
   const [guestScanCount, setGuestScanCount] = useState(0);
   const [showGuestRegister, setShowGuestRegister] = useState(false);
   const [guestLimitMessage, setGuestLimitMessage] = useState('');
+  const [intakeLog, setIntakeLog] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [shareLink, setShareLink] = useState('');
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
@@ -705,6 +773,8 @@ const App = () => {
       setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date, quantity: m.quantity })));
 
       const { data: ints, error: intsError } = await supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false });
+      const { data: log } = await supabase.from('intake_log').select('*').eq('user_id', uid).order('taken_at', { ascending: false }).limit(200);
+      setIntakeLog(log || []);
       if (intsError) console.error('intakes load error:', intsError);
       setIntakes((ints || []).map(i => ({ id: i.id, name: i.name, time: i.time, qty: i.qty, done: i.done })));
     } catch (e) {
@@ -973,6 +1043,15 @@ const App = () => {
     setIntakes(prev => prev.map(i => i.id === id ? { ...i, done: newDone } : i));
     setSwipedIntakeId(null);
     await supabase.from('intakes').update({ done: newDone }).eq('id', id);
+    // Write to intake_log when marking as taken
+    if (newDone) {
+      const { data: logEntry } = await supabase.from('intake_log').insert({
+        user_id: userId,
+        medicine_name: intake.name,
+        qty: intake.qty,
+      }).select().single();
+      if (logEntry) setIntakeLog(prev => [logEntry, ...prev]);
+    }
   };
 
   const closeSchedule = () => {
@@ -1129,7 +1208,13 @@ const App = () => {
               <>
                 <div className="sheet-header">
                   <h2>Прием лекарств</h2>
-                  <button className="close-btn" onClick={closeSchedule}>×</button>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button onClick={() => setShowHistory(true)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 10, padding: '7px 12px', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                      История
+                    </button>
+                    <button className="close-btn" onClick={closeSchedule}>×</button>
+                  </div>
                 </div>
                 <button className="primary-btn" onClick={() => setAddIntakeOpen(true)} style={{ marginBottom: 16 }}>Добавить прием</button>
                 {intakes.length === 0 ? (
@@ -1169,6 +1254,8 @@ const App = () => {
           </div>
         </div>
       )}
+
+      {showHistory && <HistorySheet log={intakeLog} onClose={() => setShowHistory(false)} />}
 
       {activeTab === 'profile' && (
         <div className="overlay" onClick={e => e.target === e.currentTarget && setActiveTab('home')}>
