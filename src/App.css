@@ -101,55 +101,106 @@ body {
 /* ── MED CARD ── */
 .med-row {
   position: relative;
-  border-radius: 16px;
+  border-radius: 18px;
   overflow: hidden;
 }
 
 .med-card {
   width: 100%;
   background: #fff;
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 14px 16px;
   user-select: none;
   position: relative;
   z-index: 1;
   transform: translateX(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  border: 1.5px solid #f0f0f0;
+  box-sizing: border-box;
 }
 .med-card.swiped {
-  transform: translateX(-50px);
+  transform: translateX(-56px);
+}
+.med-card--exp {
+  border-color: #fecaca;
+  background: #fff9f9;
+}
+.med-card--soon {
+  border-color: #fde68a;
+  background: #fffdf0;
 }
 
-.med-top {
+.med-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #f3f4f6;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #6b7280;
+}
+.med-card--exp .med-icon-wrap {
+  background: #fef2f2;
+  color: #ef4444;
+}
+.med-card--soon .med-icon-wrap {
+  background: #fffbeb;
+  color: #f59e0b;
 }
 
+.med-content {
+  flex: 1;
+  min-width: 0;
+}
 .med-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: #000;
+  color: #111;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.med-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.med-exp-text {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+.med-exp-text--exp {
+  color: #ef4444;
+  font-weight: 600;
+}
+.med-exp-text--none {
+  color: #d1d5db;
 }
 
-.badge {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 11px;
-  border-radius: 99px;
+.med-chevron {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
-.badge-ok  { color: #16a34a; border: 1.5px solid #16a34a; }
-.badge-exp { color: #dc2626; border: 1.5px solid #dc2626; }
-
-.med-bottom {
-  display: flex;
-  justify-content: space-between;
+.med-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
 }
-.med-qty { font-size: 13px; color: #666; }
-.med-qty.qty-low { color: #ef4444; font-weight: 700; }
-.med-exp { font-size: 13px; color: #666; }
+.med-status-dot--ok   { background: #22c55e; }
+.med-status-dot--exp  { background: #ef4444; }
+.med-status-dot--soon { background: #f59e0b; }
+.med-status-dot--none { background: #d1d5db; }
 
 .low-warning {
   margin-top: 8px;
