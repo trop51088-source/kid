@@ -135,7 +135,7 @@ body {
   flex: 1;
 }
 .med-name {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 700;
   color: #111;
   white-space: nowrap;
@@ -143,15 +143,15 @@ body {
   text-overflow: ellipsis;
 }
 .med-exp {
-  font-size: 12px;
+  font-size: 13px;
   color: #9ca3af;
   font-weight: 500;
 }
 
 .badge {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 5px 10px;
+  padding: 5px 11px;
   border-radius: 20px;
   white-space: nowrap;
   flex-shrink: 0;
