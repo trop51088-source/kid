@@ -340,7 +340,6 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
   }, [medicine]);
 
   const expired = isExpired(medicine.expDate);
-  const low = medicine.quantity <= 5;
   const grlsUrl = `https://grls.rosminzdrav.ru/grls/?t=reestr&n=medicines&search_filter=${encodeURIComponent(medicine.name)}`;
   const rlsUrl = `https://www.rlsnet.ru/search?q=${encodeURIComponent(medicine.name)}`;
 
@@ -356,10 +355,6 @@ const MedicineDetailSheet = ({ medicine, onClose }) => {
 
         {/* Статус */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <div style={{ flex: 1, background: '#f9fafb', borderRadius: 12, padding: '10px 14px' }}>
-            <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Остаток</div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: low ? '#ef4444' : '#111' }}>{medicine.quantity} шт</div>
-          </div>
           <div style={{ flex: 1, background: '#f9fafb', borderRadius: 12, padding: '10px 14px' }}>
             <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Срок годности</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: expired ? '#ef4444' : '#111' }}>{formatDate(medicine.expDate)}</div>
@@ -572,10 +567,10 @@ const SharePage = ({ shareId }) => {
             <div key={med.id} style={{ background: '#fff', border: `1.5px solid ${exp ? '#fecaca' : soon ? '#fde68a' : '#f3f4f6'}`, borderRadius: 16, padding: '14px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                 <div style={{ fontWeight: 600, fontSize: 15, color: '#111', flex: 1 }}>{med.name}</div>
-                {med.quantity <= 5 && <span style={{ background: '#fef2f2', color: '#ef4444', fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0 }}>Мало</span>}
+
               </div>
               <div style={{ display: 'flex', gap: 16, marginTop: 6, flexWrap: 'wrap' }}>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>Остаток: <strong style={{ color: med.quantity <= 5 ? '#ef4444' : '#374151' }}>{med.quantity} шт</strong></div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}></div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>Годен до: <strong style={{ color: exp ? '#ef4444' : soon ? '#f59e0b' : '#374151' }}>{fmt(med.exp_date)}</strong></div>
               </div>
               {exp && <div style={{ marginTop: 5, fontSize: 11, color: '#ef4444', fontWeight: 600 }}>⚠ Срок годности истёк</div>}
@@ -646,7 +641,7 @@ const HistorySheet = ({ log, onClose }) => {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, fontSize: 14, color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.medicine_name}</div>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{e.qty} шт</div>
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}></div>
                       </div>
                       <div style={{ fontSize: 13, color: '#9ca3af', fontWeight: 500, flexShrink: 0 }}>{formatTime(e.taken_at)}</div>
                     </div>
@@ -670,13 +665,11 @@ const App = () => {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualName, setManualName] = useState('');
   const [manualExp, setManualExp] = useState('');
-  const [manualQty, setManualQty] = useState(15);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [scanError, setScanError] = useState(null);
-  const [addQty, setAddQty] = useState(15);
   const videoRef = useRef(null);
   const readerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -743,7 +736,7 @@ const App = () => {
           const guestMeds = JSON.parse(guestMedsRaw);
           if (guestMeds.length > 0) {
             await supabase.from('medicines').insert(
-              guestMeds.map(m => ({ user_id: uid, name: m.name, exp_date: m.expDate, quantity: m.quantity }))
+              guestMeds.map(m => ({ user_id: uid, name: m.name, exp_date: m.expDate }))
             );
           }
           sessionStorage.removeItem('guest_medicines');
@@ -770,7 +763,7 @@ const App = () => {
 
       const { data: meds, error: medsError } = await supabase.from('medicines').select('*').eq('user_id', uid).order('created_at', { ascending: false });
       if (medsError) console.error('medicines load error:', medsError);
-      setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date, quantity: m.quantity })));
+      setMedicines((meds || []).map(m => ({ id: m.id, name: m.name, expDate: m.exp_date })));
 
       const { data: ints, error: intsError } = await supabase.from('intakes').select('*').eq('user_id', uid).order('created_at', { ascending: false });
       const { data: log } = await supabase.from('intake_log').select('*').eq('user_id', uid).order('taken_at', { ascending: false }).limit(200);
@@ -844,7 +837,7 @@ const App = () => {
     reader.readAsDataURL(file);
   };
 
-  const openManual = () => { setManualName(''); setManualExp(''); setManualQty(15); setManualOpen(true); };
+  const openManual = () => { setManualName(''); setManualExp(''); setManualOpen(true); };
 
   const handleManualAdd = async () => {
     if (!manualName.trim()) return;
@@ -855,7 +848,7 @@ const App = () => {
         setManualOpen(false);
         return;
       }
-      const newMed = { id: Date.now(), name: manualName.trim(), expDate: manualExp || null, quantity: manualQty };
+      const newMed = { id: Date.now(), name: manualName.trim(), expDate: manualExp || null };
       const updated = [newMed, ...medicines];
       setMedicines(updated);
       try { sessionStorage.setItem('guest_medicines', JSON.stringify(updated)); } catch { }
@@ -864,13 +857,13 @@ const App = () => {
     }
     const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
     const { data, error } = await supabase.from('medicines').insert({
-      user_id: uid, name: manualName.trim(), exp_date: manualExp || null, quantity: manualQty,
+      user_id: uid, name: manualName.trim(), exp_date: manualExp || null,
     }).select().single();
     if (!error && data) {
-      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date }, ...prev]);
     } else {
       console.error('Supabase insert error:', error);
-      setMedicines(prev => [{ id: Date.now(), name: manualName.trim(), expDate: manualExp || null, quantity: manualQty }, ...prev]);
+      setMedicines(prev => [{ id: Date.now(), name: manualName.trim(), expDate: manualExp || null }, ...prev]);
     }
     setManualOpen(false);
   };
@@ -881,7 +874,7 @@ const App = () => {
       setShowGuestRegister(true);
       return;
     }
-    setScanResult(null); setScanError(null); setAddQty(15); setScannerOpen(true); setTimeout(() => startScanner(), 200);
+    setScanResult(null); setScanError(null); setScannerOpen(true); setTimeout(() => startScanner(), 200);
   };
   const closeScanner = () => { stopScanner(); setScanResult(null); setScanError(null); setScannerOpen(false); };
 
@@ -956,7 +949,7 @@ const App = () => {
       const drugs = d.drugsData || {};
       const name = d.productName || drugs.prodDescLabel || 'Неизвестное лекарство';
       const expDate = d.expDate || drugs.expirationDate || null;
-      const newMed = { id: Date.now(), name, expDate, quantity: addQty };
+      const newMed = { id: Date.now(), name, expDate };
       const updated = [newMed, ...medicines];
       setMedicines(updated);
       try { sessionStorage.setItem('guest_medicines', JSON.stringify(updated)); } catch { }
@@ -972,14 +965,14 @@ const App = () => {
     const expDate = d.expDate || drugs.expirationDate || null;
     const uid = userId || (await supabase.auth.getSession()).data.session?.user?.id;
     const { data, error } = await supabase.from('medicines').insert({
-      user_id: uid, name, exp_date: expDate, quantity: addQty,
+      user_id: uid, name, exp_date: expDate,
     }).select().single();
     if (!error && data) {
-      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date, quantity: data.quantity }, ...prev]);
+      setMedicines(prev => [{ id: data.id, name: data.name, expDate: data.exp_date }, ...prev]);
     } else {
       // fallback: добавляем локально если Supabase недоступен
       console.error('Supabase insert error:', error);
-      setMedicines(prev => [{ id: Date.now(), name, expDate, quantity: addQty }, ...prev]);
+      setMedicines(prev => [{ id: Date.now(), name, expDate }, ...prev]);
     }
     closeScanner();
   };
@@ -1135,8 +1128,7 @@ const App = () => {
           ) : (
             filteredMeds.map(med => {
               const expired = isExpired(med.expDate);
-              const low = med.quantity <= 5;
-              const open = swipedMedId === med.id;
+                      const open = swipedMedId === med.id;
               const deleting = deletingMeds.has(med.id);
               return (
                 <div key={med.id} className={`med-row${deleting ? ' row-deleting' : ''}`}>
@@ -1153,10 +1145,8 @@ const App = () => {
                       <span className={`badge ${expired ? 'badge-exp' : 'badge-ok'}`}>{expired ? 'Истек' : 'В норме'}</span>
                     </div>
                     <div className="med-bottom">
-                      <span className={`med-qty${low ? ' qty-low' : ''}`}>Остаток: {med.quantity} шт</span>
                       <span className="med-exp">До {formatDate(med.expDate)}</span>
                     </div>
-                    {low && !expired && <div className="low-warning">Заканчивается! Нужно докупить</div>}
                   </div>
                 </div>
               );
@@ -1235,7 +1225,6 @@ const App = () => {
                           >
                             <div className="intake-info">
                               <span className="intake-name">{item.name}</span>
-                              <span className="intake-sub">Остаток: {item.qty} шт</span>
                             </div>
                             <div className="intake-right">
                               <span className="intake-time">{item.time}</span>
@@ -1401,15 +1390,7 @@ const App = () => {
             <input className="field-input" placeholder="Например, парацетамол" value={manualName} onChange={e => setManualName(e.target.value)} />
             <label className="field-label">Срок годности</label>
             <input className="field-input" type="date" value={manualExp} onChange={e => setManualExp(e.target.value)} />
-            <label className="field-label">Количество</label>
-            <div className="qty-row" style={{ marginBottom: 20 }}>
-              <span className="qty-label" style={{ fontSize: 15 }}>{manualQty} шт</span>
-              <div className="qty-controls">
-                <button onClick={() => setManualQty(q => Math.max(1, q - 1))}>−</button>
-                <span>{manualQty}</span>
-                <button onClick={() => setManualQty(q => q + 1)}>+</button>
-              </div>
-            </div>
+
             <button className="primary-btn" onClick={handleManualAdd}>Добавить лекарство</button>
           </div>
         </div>
@@ -1456,14 +1437,7 @@ const App = () => {
                     </div>
                     <button className="change-btn" onClick={() => { setScanResult(null); startScanner(); }}>Изменить</button>
                   </div>
-                  <div className="qty-row">
-                    <span className="qty-label">Количество:</span>
-                    <div className="qty-controls">
-                      <button onClick={() => setAddQty(q => Math.max(1, q - 1))}>−</button>
-                      <span>{addQty} шт</span>
-                      <button onClick={() => setAddQty(q => q + 1)}>+</button>
-                    </div>
-                  </div>
+
                   <button className="primary-btn" onClick={handleAddMedicine}>Добавить лекарство</button>
                 </>
               );
