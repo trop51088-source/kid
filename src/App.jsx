@@ -872,20 +872,41 @@ const App = () => {
     setManualOpen(false);
   };
 
+  // continuous position 0=search,1=home,2=schedule — drives smooth color blending
+  const [navPos, setNavPos] = React.useState(1);
+  const [navReady, setNavReady] = React.useState(false);
+
+  const getNavBtnCenters = () => {
+    if (!navRef.current) return [];
+    const navRect = navRef.current.getBoundingClientRect();
+    return Array.from(navRef.current.querySelectorAll('.nav-btn')).map(b => {
+      const r = b.getBoundingClientRect();
+      return { left: r.left - navRect.left, width: r.width };
+    });
+  };
+
   const positionIndicatorAt = React.useCallback((idx) => {
     if (!navRef.current) return;
-    const btns = navRef.current.querySelectorAll('.nav-btn');
+    const btns = getNavBtnCenters();
     const btn = btns[idx];
     if (!btn) return;
-    const navRect = navRef.current.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    setNavIndicator({ left: btnRect.left - navRect.left, width: btnRect.width });
+    setNavIndicator({ left: btn.left, width: btn.width });
+    setNavPos(idx);
+    setNavReady(true);
   }, []);
 
-  useEffect(() => {
+  // useLayoutEffect so indicator is at the right spot before first paint
+  React.useLayoutEffect(() => {
     const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
     positionIndicatorAt(idx);
   }, [activeTab, positionIndicatorAt]);
+
+  // Interpolate icon/text color based on continuous navPos
+  const getNavBtnStyle = (idx) => {
+    const t = Math.max(0, Math.min(1, 1 - Math.abs(navPos - idx)));
+    const alpha = (0.45 + 0.55 * t).toFixed(2);
+    return { color: `rgba(255,255,255,${alpha})` };
+  };
 
   const handleNavTouchStart = (e) => {
     navDragStartX.current = e.touches[0].clientX;
@@ -899,19 +920,29 @@ const App = () => {
     const maxLeft = navRef.current.offsetWidth - navIndicator.width - 8;
     const newLeft = Math.max(8, Math.min(maxLeft, navDragBaseLeft.current + dx));
     setNavIndicator(prev => ({ ...prev, left: newLeft }));
+    // compute continuous position for color blending
+    const btns = getNavBtnCenters();
+    if (btns.length === 3) {
+      const center = newLeft + navIndicator.width / 2;
+      const c = btns.map(b => b.left + b.width / 2);
+      let pos;
+      if (center <= c[0]) pos = 0;
+      else if (center >= c[2]) pos = 2;
+      else if (center <= c[1]) pos = (center - c[0]) / (c[1] - c[0]);
+      else pos = 1 + (center - c[1]) / (c[2] - c[1]);
+      setNavPos(pos);
+    }
   };
 
   const handleNavTouchEnd = () => {
     if (!navDragging.current || !navRef.current) return;
     navDragging.current = false;
-    const btns = navRef.current.querySelectorAll('.nav-btn');
-    const navRect = navRef.current.getBoundingClientRect();
-    const indicatorCenter = navIndicator.left + navIndicator.width / 2;
+    const btns = getNavBtnCenters();
+    const center = navIndicator.left + navIndicator.width / 2;
     let nearest = 1;
     let minDist = Infinity;
-    btns.forEach((btn, i) => {
-      const r = btn.getBoundingClientRect();
-      const dist = Math.abs((r.left - navRect.left + r.width / 2) - indicatorCenter);
+    btns.forEach(({ left, width }, i) => {
+      const dist = Math.abs(left + width / 2 - center);
       if (dist < minDist) { minDist = dist; nearest = i; }
     });
     const tabs = ['search', 'home', 'schedule'];
@@ -1207,20 +1238,20 @@ const App = () => {
       </div>}
 
       <nav className="bottom-nav" ref={navRef} onTouchStart={handleNavTouchStart} onTouchMove={handleNavTouchMove} onTouchEnd={handleNavTouchEnd}>
-        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width, transition: navDragging.current ? 'none' : undefined }} />
-        <button className={`nav-btn${activeTab === 'search' ? ' nav-btn--active' : ''}`} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
+        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width, opacity: navReady ? 1 : 0, transition: navDragging.current ? 'opacity 0.15s' : 'left 0.30s cubic-bezier(0.34,1.15,0.64,1), width 0.30s cubic-bezier(0.34,1.15,0.64,1), opacity 0.15s' }} />
+        <button className="nav-btn" style={getNavBtnStyle(0)} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <span>Поиск</span>
         </button>
-        <button className={`nav-btn${activeTab === 'home' ? ' nav-btn--active' : ''}`} onClick={() => setActiveTab('home')}>
+        <button className="nav-btn" style={getNavBtnStyle(1)} onClick={() => setActiveTab('home')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
             <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9.5z" /><polyline points="9 21 9 12 15 12 15 21" />
           </svg>
           <span>Главная</span>
         </button>
-        <button className={`nav-btn${activeTab === 'schedule' ? ' nav-btn--active' : ''}`} onClick={() => activeTab === 'schedule' ? closeSchedule() : setActiveTab('schedule')}>
+        <button className="nav-btn" style={getNavBtnStyle(2)} onClick={() => activeTab === 'schedule' ? closeSchedule() : setActiveTab('schedule')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
             <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
           </svg>
