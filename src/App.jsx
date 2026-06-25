@@ -691,6 +691,9 @@ const App = () => {
   const touchStartX = useRef(null);
   const navRef = useRef(null);
   const [navIndicator, setNavIndicator] = React.useState({ left: 8, width: 80 });
+  const navDragging = useRef(false);
+  const navDragStartX = useRef(0);
+  const navDragBaseLeft = useRef(0);
   const [selectedMed, setSelectedMed] = useState(null);
   const [guestScanCount, setGuestScanCount] = useState(0);
   const [showGuestRegister, setShowGuestRegister] = useState(false);
@@ -869,16 +872,51 @@ const App = () => {
     setManualOpen(false);
   };
 
-  useEffect(() => {
+  const positionIndicatorAt = React.useCallback((idx) => {
     if (!navRef.current) return;
     const btns = navRef.current.querySelectorAll('.nav-btn');
-    const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
     const btn = btns[idx];
     if (!btn) return;
     const navRect = navRef.current.getBoundingClientRect();
     const btnRect = btn.getBoundingClientRect();
     setNavIndicator({ left: btnRect.left - navRect.left, width: btnRect.width });
-  }, [activeTab]);
+  }, []);
+
+  useEffect(() => {
+    const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
+    positionIndicatorAt(idx);
+  }, [activeTab, positionIndicatorAt]);
+
+  const handleNavTouchStart = (e) => {
+    navDragStartX.current = e.touches[0].clientX;
+    navDragBaseLeft.current = navIndicator.left;
+    navDragging.current = true;
+  };
+
+  const handleNavTouchMove = (e) => {
+    if (!navDragging.current || !navRef.current) return;
+    const dx = e.touches[0].clientX - navDragStartX.current;
+    const maxLeft = navRef.current.offsetWidth - navIndicator.width - 8;
+    const newLeft = Math.max(8, Math.min(maxLeft, navDragBaseLeft.current + dx));
+    setNavIndicator(prev => ({ ...prev, left: newLeft }));
+  };
+
+  const handleNavTouchEnd = () => {
+    if (!navDragging.current || !navRef.current) return;
+    navDragging.current = false;
+    const btns = navRef.current.querySelectorAll('.nav-btn');
+    const navRect = navRef.current.getBoundingClientRect();
+    const indicatorCenter = navIndicator.left + navIndicator.width / 2;
+    let nearest = 1;
+    let minDist = Infinity;
+    btns.forEach((btn, i) => {
+      const r = btn.getBoundingClientRect();
+      const dist = Math.abs((r.left - navRect.left + r.width / 2) - indicatorCenter);
+      if (dist < minDist) { minDist = dist; nearest = i; }
+    });
+    const tabs = ['search', 'home', 'schedule'];
+    setActiveTab(tabs[nearest]);
+  };
 
   const openScanner = () => {
     if (isGuest && guestScanCount >= GUEST_MAX_SCANS) {
@@ -1168,8 +1206,8 @@ const App = () => {
         </div>
       </div>}
 
-      <nav className="bottom-nav" ref={navRef}>
-        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width }} />
+      <nav className="bottom-nav" ref={navRef} onTouchStart={handleNavTouchStart} onTouchMove={handleNavTouchMove} onTouchEnd={handleNavTouchEnd}>
+        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width, transition: navDragging.current ? 'none' : undefined }} />
         <button className={`nav-btn${activeTab === 'search' ? ' nav-btn--active' : ''}`} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />

@@ -259,7 +259,7 @@ body {
   z-index: 1;
 }
 .nav-btn--active {
-  color: #fff;
+  color: #111;
 }
 .nav-btn:active { opacity: 0.7; }
 
@@ -268,7 +268,8 @@ body {
   top: 8px;
   bottom: 8px;
   border-radius: 38px;
-  background: rgba(0, 0, 0, 0.80);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
   transition: left 0.30s cubic-bezier(0.34, 1.15, 0.64, 1),
               width 0.30s cubic-bezier(0.34, 1.15, 0.64, 1);
   pointer-events: none;
