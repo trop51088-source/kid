@@ -689,6 +689,8 @@ const App = () => {
   const [userId, setUserId] = useState(null);
   const [userEmail, setUserEmail] = useState('');
   const touchStartX = useRef(null);
+  const navRef = useRef(null);
+  const [navIndicator, setNavIndicator] = React.useState({ left: 8, width: 80 });
   const [selectedMed, setSelectedMed] = useState(null);
   const [guestScanCount, setGuestScanCount] = useState(0);
   const [showGuestRegister, setShowGuestRegister] = useState(false);
@@ -866,6 +868,17 @@ const App = () => {
     }
     setManualOpen(false);
   };
+
+  useEffect(() => {
+    if (!navRef.current) return;
+    const btns = navRef.current.querySelectorAll('.nav-btn');
+    const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
+    const btn = btns[idx];
+    if (!btn) return;
+    const navRect = navRef.current.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    setNavIndicator({ left: btnRect.left - navRect.left, width: btnRect.width });
+  }, [activeTab]);
 
   const openScanner = () => {
     if (isGuest && guestScanCount >= GUEST_MAX_SCANS) {
@@ -1155,7 +1168,8 @@ const App = () => {
         </div>
       </div>}
 
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" ref={navRef}>
+        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width }} />
         <button className={`nav-btn${activeTab === 'search' ? ' nav-btn--active' : ''}`} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
