@@ -156,11 +156,10 @@ const PharmacySheet = ({ onClose }) => {
   const focusOnPharmacy = (item) => { if (ymapRef.current) ymapRef.current.setCenter(item.coords, 17); };
 
   return (
-    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="sheet">
-        <div className="sheet-header">
+    <div className="tab-page">
+      <div className="tab-page-inner">
+        <div className="tab-page-header">
           <h2>Аптеки рядом</h2>
-          <button className="close-btn" onClick={onClose}>×</button>
         </div>
         <button className="geo-btn" onClick={geolocate} disabled={busy}>
           {busy
@@ -1103,7 +1102,7 @@ const App = () => {
 
   return (
     <div className="app" onClick={() => { setSwipedMedId(null); setSwipedIntakeId(null); }}>
-      <div className="home">
+      {activeTab === 'home' && <div className="home">
         <div className="home-header">
           <h1 className="greeting">{isGuest ? 'Гостевой режим' : `Привет, ${profile.name || 'друг'}`}</h1>
           <button className="avatar" onClick={isGuest ? () => { setGuestLimitMessage(''); setShowGuestRegister(true); } : openProfile}>
@@ -1154,7 +1153,7 @@ const App = () => {
             })
           )}
         </div>
-      </div>
+      </div>}
 
       <nav className="bottom-nav">
         <button className={`nav-btn${activeTab === 'search' ? ' nav-btn--active' : ''}`} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
@@ -1180,12 +1179,12 @@ const App = () => {
       {activeTab === 'search' && <PharmacySheet onClose={() => setActiveTab('home')} />}
 
       {activeTab === 'schedule' && (
-        <div className="overlay" onClick={e => e.target === e.currentTarget && closeSchedule()}>
-          <div className="sheet">
+        <div className="tab-page">
+          <div className="tab-page-inner">
             {addIntakeOpen ? (
               <>
-                <div className="sheet-header">
-                  <h2>Прием лекарств</h2>
+                <div className="tab-page-header">
+                  <h2>Добавить приём</h2>
                   <button className="close-btn" onClick={() => setAddIntakeOpen(false)}>×</button>
                 </div>
                 <label className="field-label">Название лекарства</label>
@@ -1198,15 +1197,12 @@ const App = () => {
               </>
             ) : (
               <>
-                <div className="sheet-header">
-                  <h2>Прием лекарств</h2>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button onClick={() => setShowHistory(true)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 10, padding: '7px 12px', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                      История
-                    </button>
-                    <button className="close-btn" onClick={closeSchedule}>×</button>
-                  </div>
+                <div className="tab-page-header">
+                  <h2>Приём лекарств</h2>
+                  <button onClick={() => setShowHistory(true)} style={{ background: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: 10, padding: '7px 12px', fontSize: 13, fontWeight: 600, color: '#374151', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" width="15" height="15"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    История
+                  </button>
                 </div>
                 <button className="primary-btn" onClick={() => setAddIntakeOpen(true)} style={{ marginBottom: 16 }}>Добавить прием</button>
                 {intakes.length === 0 ? (
