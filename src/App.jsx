@@ -894,12 +894,21 @@ const App = () => {
     setNavPos(idx);
   }, []);
 
-  // rAF ensures nav is fully painted before measuring button positions
+  // double rAF + timeout fallback — guarantees nav is painted before measuring
   React.useEffect(() => {
     const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
-    if (!navDragging.current) {
-      requestAnimationFrame(() => positionIndicatorAt(idx));
-    }
+    if (navDragging.current) return;
+    const run = () => positionIndicatorAt(idx);
+    // first attempt after paint
+    const raf1 = requestAnimationFrame(() => {
+      run();
+      // second attempt in case first rAF was too early
+      const raf2 = requestAnimationFrame(run);
+      return raf2;
+    });
+    // hard fallback for slow devices / first load
+    const t = setTimeout(run, 80);
+    return () => { cancelAnimationFrame(raf1); clearTimeout(t); };
   }, [activeTab, positionIndicatorAt]);
 
   // Interpolate icon/text color based on continuous navPos
