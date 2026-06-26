@@ -231,13 +231,31 @@ body {
   align-items: center;
   gap: 4px;
   padding: 8px 10px;
-  background: rgba(120, 120, 120, 0.28);
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.30);
+  background: transparent;
   border-radius: 50px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.22);
   white-space: nowrap;
+  isolation: isolate;
+}
+
+/* Liquid Glass layer — blur + рефракция + блик, не затрагивает текст */
+.glass-body {
+  position: absolute;
+  inset: 0;
+  border-radius: 50px;
+  background:
+    linear-gradient(175deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.0) 45%),
+    rgba(90, 90, 90, 0.32);
+  backdrop-filter: blur(28px) saturate(180%) brightness(1.06);
+  -webkit-backdrop-filter: blur(28px) saturate(180%) brightness(1.06);
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.55),
+    inset 0 -1px 0 rgba(0,0,0,0.10),
+    0 8px 32px rgba(0,0,0,0.22),
+    0 2px 6px rgba(0,0,0,0.12);
+  filter: url(#lg-refract);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .nav-btn {

@@ -1186,6 +1186,23 @@ const App = () => {
 
   return (
     <div className="app" onClick={() => { setSwipedMedId(null); setSwipedIntakeId(null); }}>
+      {/* Liquid Glass SVG filter definitions */}
+      <svg style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden' }}>
+        <defs>
+          <filter id="lg-refract" x="-8%" y="-8%" width="116%" height="116%" colorInterpolationFilters="sRGB">
+            {/* Subtle edge distortion — имитирует рефракцию стекла */}
+            <feTurbulence type="fractalNoise" baseFrequency="0.9 0.65" numOctaves="2" seed="5" result="noise"/>
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.5" xChannelSelector="R" yChannelSelector="G" result="refracted"/>
+            {/* Specular highlight — блик сверху */}
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+            <feSpecularLighting in="blur" surfaceScale="6" specularConstant="1.2" specularExponent="25" result="specular">
+              <fePointLight x="50%" y="-60" z="120"/>
+            </feSpecularLighting>
+            <feComposite in="specular" in2="SourceAlpha" operator="in" result="clippedSpec"/>
+            <feBlend in="refracted" in2="clippedSpec" mode="screen"/>
+          </filter>
+        </defs>
+      </svg>
       {activeTab === 'home' && <div className="home">
         <div className="home-header">
           <h1 className="greeting">{isGuest ? 'Гостевой режим' : `Привет, ${profile.name || 'друг'}`}</h1>
@@ -1240,6 +1257,7 @@ const App = () => {
       </div>}
 
       <nav className="bottom-nav" ref={navRef} onTouchStart={handleNavTouchStart} onTouchMove={handleNavTouchMove} onTouchEnd={handleNavTouchEnd}>
+        <div className="glass-body" />
         <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width, opacity: navReady ? 1 : 0, transition: navDragging.current ? 'opacity 0.15s' : 'left 0.30s cubic-bezier(0.34,1.15,0.64,1), width 0.30s cubic-bezier(0.34,1.15,0.64,1), opacity 0.15s' }} />
         <button className="nav-btn" style={getNavBtnStyle(0)} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
