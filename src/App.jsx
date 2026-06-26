@@ -690,7 +690,7 @@ const App = () => {
   const [userEmail, setUserEmail] = useState('');
   const touchStartX = useRef(null);
   const navRef = useRef(null);
-  const [navIndicator, setNavIndicator] = React.useState({ left: 8, width: 80 });
+  const [navIndicator, setNavIndicator] = React.useState({ left: -200, width: 80 }); // off-screen until measured
   const navDragging = useRef(false);
   const navDragStartX = useRef(0);
   const navDragBaseLeft = useRef(0);
@@ -874,7 +874,6 @@ const App = () => {
 
   // continuous position 0=search,1=home,2=schedule — drives smooth color blending
   const [navPos, setNavPos] = React.useState(1);
-  const [navReady, setNavReady] = React.useState(false);
 
   const getNavBtnCenters = () => {
     if (!navRef.current) return [];
@@ -892,7 +891,6 @@ const App = () => {
     if (!btn) return;
     setNavIndicator({ left: btn.left, width: btn.width });
     setNavPos(idx);
-    setNavReady(true);
   }, []);
 
   // useLayoutEffect so indicator is at the right spot before first paint
@@ -1257,7 +1255,7 @@ const App = () => {
 
       <nav className="bottom-nav" ref={navRef} onTouchStart={handleNavTouchStart} onTouchMove={handleNavTouchMove} onTouchEnd={handleNavTouchEnd}>
         <div className="glass-body" />
-        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width, opacity: navReady ? 1 : 0, transition: navDragging.current ? 'opacity 0.15s' : 'left 0.30s cubic-bezier(0.34,1.15,0.64,1), width 0.30s cubic-bezier(0.34,1.15,0.64,1), opacity 0.15s' }} />
+        <div className="nav-indicator" style={{ left: navIndicator.left, width: navIndicator.width, transition: navDragging.current ? 'none' : 'left 0.30s cubic-bezier(0.34,1.15,0.64,1), width 0.30s cubic-bezier(0.34,1.15,0.64,1)' }} />
         <button className="nav-btn" style={getNavBtnStyle(0)} onClick={() => setActiveTab(activeTab === 'search' ? 'home' : 'search')}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
