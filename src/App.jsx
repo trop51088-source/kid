@@ -904,10 +904,9 @@ const App = () => {
   // Interpolate icon/text color based on continuous navPos
   const getNavBtnStyle = (idx) => {
     const t = Math.max(0, Math.min(1, 1 - Math.abs(navPos - idx)));
-    // inactive: rgba(255,255,255,0.45)  active: rgb(0,0,0)
-    const ch = Math.round(255 * (1 - t));
-    const a = (0.45 + 0.55 * t).toFixed(2);
-    return { color: `rgba(${ch},${ch},${ch},${a})` };
+    // inactive: rgba(0,0,0,0.38)  →  active: rgba(0,0,0,0.90)
+    const a = (0.38 + 0.52 * t).toFixed(2);
+    return { color: `rgba(0,0,0,${a})` };
   };
 
   const handleNavTouchStart = (e) => {
