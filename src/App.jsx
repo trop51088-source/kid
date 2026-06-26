@@ -894,10 +894,12 @@ const App = () => {
     setNavPos(idx);
   }, []);
 
-  // useLayoutEffect so indicator is at the right spot before first paint
-  React.useLayoutEffect(() => {
+  // rAF ensures nav is fully painted before measuring button positions
+  React.useEffect(() => {
     const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
-    positionIndicatorAt(idx);
+    if (!navDragging.current) {
+      requestAnimationFrame(() => positionIndicatorAt(idx));
+    }
   }, [activeTab, positionIndicatorAt]);
 
   // Interpolate icon/text color based on continuous navPos
