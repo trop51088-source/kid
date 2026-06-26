@@ -694,6 +694,7 @@ const App = () => {
   const navDragging = useRef(false);
   const navDragStartX = useRef(0);
   const navDragBaseLeft = useRef(0);
+  const navCurrentLeft = useRef(0);
   const [selectedMed, setSelectedMed] = useState(null);
   const [guestScanCount, setGuestScanCount] = useState(0);
   const [showGuestRegister, setShowGuestRegister] = useState(false);
@@ -902,14 +903,15 @@ const App = () => {
   // Interpolate icon/text color based on continuous navPos
   const getNavBtnStyle = (idx) => {
     const t = Math.max(0, Math.min(1, 1 - Math.abs(navPos - idx)));
-    // inactive: rgba(0,0,0,0.38)  →  active: rgba(0,0,0,0.90)
-    const a = (0.38 + 0.52 * t).toFixed(2);
-    return { color: `rgba(0,0,0,${a})` };
+    // inactive: rgba(255,255,255,0.50) → active: rgba(255,255,255,1.0)
+    const a = (0.50 + 0.50 * t).toFixed(2);
+    return { color: `rgba(255,255,255,${a})` };
   };
 
   const handleNavTouchStart = (e) => {
     navDragStartX.current = e.touches[0].clientX;
     navDragBaseLeft.current = navIndicator.left;
+    navCurrentLeft.current = navIndicator.left;
     navDragging.current = true;
   };
 
@@ -918,6 +920,7 @@ const App = () => {
     const dx = e.touches[0].clientX - navDragStartX.current;
     const maxLeft = navRef.current.offsetWidth - navIndicator.width - 8;
     const newLeft = Math.max(8, Math.min(maxLeft, navDragBaseLeft.current + dx));
+    navCurrentLeft.current = newLeft; // always up-to-date ref
     setNavIndicator(prev => ({ ...prev, left: newLeft }));
     // compute continuous position for color blending
     const btns = getNavBtnCenters();
@@ -937,7 +940,8 @@ const App = () => {
     if (!navDragging.current || !navRef.current) return;
     navDragging.current = false;
     const btns = getNavBtnCenters();
-    const center = navIndicator.left + navIndicator.width / 2;
+    // use ref for current position — avoids stale state closure
+    const center = navCurrentLeft.current + navIndicator.width / 2;
     let nearest = 1;
     let minDist = Infinity;
     btns.forEach(({ left, width }, i) => {
