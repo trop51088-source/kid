@@ -22,9 +22,30 @@ body {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  background: #A8CBE8;
+  background: linear-gradient(160deg, #9ec8e8 0%, #6aadd8 35%, #a8cce8 65%, #c2dff0 100%);
   position: relative;
   overflow: hidden;
+}
+/* декоративные блобы — делают стекло визуально видимым */
+.app::before {
+  content: '';
+  position: absolute;
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%);
+  top: -80px; right: -60px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.app::after {
+  content: '';
+  position: absolute;
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(100,180,240,0.40) 0%, transparent 70%);
+  bottom: 80px; left: -80px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ── HOME ── */
@@ -86,7 +107,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.75);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.90), 0 2px 12px rgba(0,0,0,0.07);
   border-radius: 24px;
   padding: 13px 18px;
   margin-bottom: 16px;
@@ -105,9 +130,12 @@ body {
 .add-btn {
   width: 100%;
   padding: 18px;
-  background: #000;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   color: #fff;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 16px rgba(0,0,0,0.20);
   border-radius: 16px;
   font-size: 17px;
   font-weight: 700;
@@ -116,7 +144,7 @@ body {
   margin-bottom: 24px;
   letter-spacing: -0.01em;
 }
-.add-btn:active { opacity: 0.85; }
+.add-btn:active { opacity: 0.80; transform: scale(0.99); }
 
 .medicines { display: flex; flex-direction: column; gap: 12px; }
 
@@ -137,7 +165,9 @@ body {
 
 .med-card {
   width: 100%;
-  background: #fff;
+  background: rgba(255,255,255,0.58);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border-radius: 18px;
   padding: 18px 18px;
   user-select: none;
@@ -145,8 +175,8 @@ body {
   z-index: 1;
   transform: translateX(0);
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  border: 1.5px solid #f0f0f0;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.90), 0 2px 12px rgba(0,0,0,0.07);
+  border: 1px solid rgba(255,255,255,0.72);
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -186,9 +216,9 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.badge-ok   { background: #dcfce7; color: #16a34a; }
-.badge-exp  { background: #fee2e2; color: #dc2626; }
-.badge-soon { background: #fff3cd; color: #b45309; }
+.badge-ok   { background: rgba(220,252,231,0.75); color: #15803d; border: 1px solid rgba(134,239,172,0.50); }
+.badge-exp  { background: rgba(254,226,226,0.75); color: #dc2626; border: 1px solid rgba(252,165,165,0.50); }
+.badge-soon { background: rgba(255,243,205,0.75); color: #b45309; border: 1px solid rgba(253,224,71,0.50); }
 
 .low-warning {
   margin-top: 8px;
@@ -672,10 +702,12 @@ button.pharm-card:active { background: #f0f0f0; }
 /* ── GENERIC SHEET (search / schedule / profile) ── */
 .sheet {
   width: 100%;
-  background: #A8CBE8;
+  background: rgba(210,230,245,0.82);
+  backdrop-filter: blur(40px) saturate(160%);
+  -webkit-backdrop-filter: blur(40px) saturate(160%);
   border-top-left-radius: 26px;
   border-top-right-radius: 26px;
-  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255,255,255,0.72);
   border-bottom: none;
   padding: 28px 20px;
   padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
@@ -769,13 +801,16 @@ button.pharm-card:active { background: #f0f0f0; }
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: #fff;
+  background: rgba(255,255,255,0.55);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.75);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.90), 0 2px 8px rgba(0,0,0,0.10);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: #444;
   flex-shrink: 0;
-  border: none;
   cursor: pointer;
 }
 .avatar:active { opacity: 0.8; }
