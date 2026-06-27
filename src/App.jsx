@@ -1024,22 +1024,86 @@ const App = () => {
     e.target.value = '';
     setLoading(true); stopScanner();
     setScanResult(null); setScanError(null); setScannerOpen(true);
+
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    const reader = new BrowserMultiFormatReader(hints);
+
+    // Extract canvas region to dataURL
+    const regionToDataUrl = (img, sx, sy, sw, sh, outW, outH, contrast = 1.4) => {
+      const c = document.createElement('canvas');
+      c.width = outW; c.height = outH;
+      const ctx = c.getContext('2d');
+      ctx.filter = `contrast(${contrast}) brightness(1.05)`;
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
+      return c.toDataURL('image/jpeg', 0.95);
+    };
+
+    // Try scanning a single dataURL, return text or null
+    const tryScan = async (dataUrl) => {
+      try {
+        const r = await reader.decodeFromImageUrl(dataUrl);
+        return r?.getText() || null;
+      } catch { return null; }
+    };
+
     const blobUrl = URL.createObjectURL(file);
     try {
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
-      hints.set(DecodeHintType.TRY_HARDER, true);
-      const reader = new BrowserMultiFormatReader(hints);
-      const result = await reader.decodeFromImageUrl(blobUrl);
+      // Load image
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = reject;
+        i.src = blobUrl;
+      });
       URL.revokeObjectURL(blobUrl);
-      if (result?.getText()) {
-        await fetchProduct(result.getText());
-      } else {
-        setScanError('Код не найден на фото. Попробуйте другое фото.');
+
+      const W = img.naturalWidth, H = img.naturalHeight;
+      const TARGET = 1200; // fixed output size for speed
+
+      // Attempt list: full image at different scales + 4 quadrants + 9-grid patches
+      const attempts = [];
+
+      // 1. Full image, different contrast levels
+      for (const contrast of [1.0, 1.5, 2.0]) {
+        attempts.push(() => tryScan(regionToDataUrl(img, 0, 0, W, H, TARGET, Math.round(TARGET * H / W), contrast)));
       }
+
+      // 2. Four quadrants
+      const quads = [
+        [0, 0, W/2, H/2], [W/2, 0, W/2, H/2],
+        [0, H/2, W/2, H/2], [W/2, H/2, W/2, H/2],
+      ];
+      for (const [sx, sy, sw, sh] of quads) {
+        attempts.push(() => tryScan(regionToDataUrl(img, sx, sy, sw, sh, TARGET, TARGET, 1.5)));
+      }
+
+      // 3. Narrow horizontal strips (DataMatrix often on edge/side of box)
+      for (let i = 0; i < 3; i++) {
+        const sy = Math.round(H * i / 3), sh = Math.round(H / 3);
+        attempts.push(() => tryScan(regionToDataUrl(img, 0, sy, W, sh, TARGET, Math.round(TARGET * sh / W), 1.5)));
+      }
+
+      // 4. Narrow vertical strips
+      for (let i = 0; i < 3; i++) {
+        const sx = Math.round(W * i / 3), sw = Math.round(W / 3);
+        attempts.push(() => tryScan(regionToDataUrl(img, sx, 0, sw, H, Math.round(TARGET * sw / H), TARGET, 1.5)));
+      }
+
+      // Run all attempts sequentially, stop at first success
+      for (const attempt of attempts) {
+        const text = await attempt();
+        if (text) {
+          await fetchProduct(text);
+          return;
+        }
+      }
+
+      setScanError('Код не найден на фото. Убедитесь, что DataMatrix код виден и не смазан.');
     } catch (err) {
       URL.revokeObjectURL(blobUrl);
-      setScanError('Код не найден на фото. Убедитесь, что код чёткий и хорошо освещён.');
+      setScanError('Ошибка обработки фото: ' + err.message);
     } finally { setLoading(false); }
   };
 
