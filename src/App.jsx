@@ -894,32 +894,23 @@ const App = () => {
     setNavPos(idx);
   }, []);
 
-  // ResizeObserver on mount — fires exactly when nav is laid out and gets real size
-  React.useEffect(() => {
-    if (!navRef.current) return;
-    const nav = navRef.current;
-    const measure = () => {
-      const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
-      positionIndicatorAt(idx);
-    };
-    const ro = new ResizeObserver(() => { measure(); });
-    ro.observe(nav);
-    // also try immediately + rAF in case already sized
-    measure();
-    const raf = requestAnimationFrame(measure);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // tab switches: rAF + fallback timeout
+  // Poll every rAF until buttons have real sizes, then position indicator.
+  // This is the only reliable way — getBoundingClientRect returns 0 on early frames.
   React.useEffect(() => {
     const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
     if (navDragging.current) return;
-    const run = () => positionIndicatorAt(idx);
-    const raf1 = requestAnimationFrame(() => { run(); requestAnimationFrame(run); });
-    const t1 = setTimeout(run, 80);
-    const t2 = setTimeout(run, 300);
-    return () => { cancelAnimationFrame(raf1); clearTimeout(t1); clearTimeout(t2); };
+    let raf;
+    const tryPosition = () => {
+      if (!navRef.current) { raf = requestAnimationFrame(tryPosition); return; }
+      const btns = Array.from(navRef.current.querySelectorAll('.nav-btn'));
+      if (btns.length === 3 && btns[idx] && btns[idx].getBoundingClientRect().width > 0) {
+        positionIndicatorAt(idx);
+      } else {
+        raf = requestAnimationFrame(tryPosition);
+      }
+    };
+    raf = requestAnimationFrame(tryPosition);
+    return () => cancelAnimationFrame(raf);
   }, [activeTab, positionIndicatorAt]);
 
   // Interpolate icon/text color based on continuous navPos
