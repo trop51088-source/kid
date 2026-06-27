@@ -665,6 +665,7 @@ const App = () => {
   const [manualName, setManualName] = useState('');
   const [manualExp, setManualExp] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [addSheetOpen, setAddSheetOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -1235,7 +1236,7 @@ const App = () => {
           </svg>
           <input placeholder="Поиск по аптечке" value={homeSearch} onChange={e => setHomeSearch(e.target.value)} />
         </div>
-        <button className="add-btn" onClick={openScanner}>Добавить лекарство</button>
+        <button className="add-btn" onClick={() => setAddSheetOpen(true)}>Добавить лекарство</button>
         <div className="medicines">
           {filteredMeds.length === 0 ? (
             <p className="empty">В аптечке пока пусто</p>
@@ -1511,6 +1512,57 @@ const App = () => {
         </div>
       )}
 
+      {/* Global file input — used by both chooser and scanner */}
+      <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
+
+      {addSheetOpen && (
+        <div className="overlay" onClick={e => e.target === e.currentTarget && setAddSheetOpen(false)}>
+          <div className="sheet add-method-sheet">
+            <div className="sheet-header">
+              <h2>Добавить лекарство</h2>
+              <button className="close-btn" onClick={() => setAddSheetOpen(false)}>×</button>
+            </div>
+            <button className="add-method-btn" onClick={() => { setAddSheetOpen(false); openScanner(); }}>
+              <span className="add-method-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+                  <rect x="14" y="14" width="3" height="3" rx="0.5"/><rect x="18" y="14" width="3" height="3" rx="0.5"/><rect x="14" y="18" width="3" height="3" rx="0.5"/><rect x="18" y="18" width="3" height="3" rx="0.5"/>
+                </svg>
+              </span>
+              <span className="add-method-text">
+                <span className="add-method-title">Сканировать код</span>
+                <span className="add-method-sub">Наведи камеру на Честный Знак</span>
+              </span>
+              <svg className="add-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button className="add-method-btn" onClick={() => { setAddSheetOpen(false); setTimeout(() => fileInputRef.current?.click(), 100); }}>
+              <span className="add-method-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                </svg>
+              </span>
+              <span className="add-method-text">
+                <span className="add-method-title">Распознать по фото</span>
+                <span className="add-method-sub">Загрузи фото упаковки или кода</span>
+              </span>
+              <svg className="add-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <button className="add-method-btn" onClick={() => { setAddSheetOpen(false); setManualOpen(true); }}>
+              <span className="add-method-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="22" height="22">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+              </span>
+              <span className="add-method-text">
+                <span className="add-method-title">Добавить вручную</span>
+                <span className="add-method-sub">Введи название и срок годности</span>
+              </span>
+              <svg className="add-method-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {scannerOpen && (
         <div className="overlay" onClick={e => e.target === e.currentTarget && closeScanner()}>
           <div className="scanner-sheet">
@@ -1518,7 +1570,6 @@ const App = () => {
               <h2>Сканирование<br />Честного Знака</h2>
               <button className="close-btn" onClick={closeScanner}>×</button>
             </div>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
             {!scanResult && !scanError && (
               <>
                 {isGuest && guestScanCount === 0 && (
