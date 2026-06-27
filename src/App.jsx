@@ -894,21 +894,32 @@ const App = () => {
     setNavPos(idx);
   }, []);
 
-  // double rAF + timeout fallback — guarantees nav is painted before measuring
+  // ResizeObserver on mount — fires exactly when nav is laid out and gets real size
+  React.useEffect(() => {
+    if (!navRef.current) return;
+    const nav = navRef.current;
+    const measure = () => {
+      const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
+      positionIndicatorAt(idx);
+    };
+    const ro = new ResizeObserver(() => { measure(); });
+    ro.observe(nav);
+    // also try immediately + rAF in case already sized
+    measure();
+    const raf = requestAnimationFrame(measure);
+    return () => { ro.disconnect(); cancelAnimationFrame(raf); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // tab switches: rAF + fallback timeout
   React.useEffect(() => {
     const idx = activeTab === 'search' ? 0 : activeTab === 'home' ? 1 : 2;
     if (navDragging.current) return;
     const run = () => positionIndicatorAt(idx);
-    // first attempt after paint
-    const raf1 = requestAnimationFrame(() => {
-      run();
-      // second attempt in case first rAF was too early
-      const raf2 = requestAnimationFrame(run);
-      return raf2;
-    });
-    // hard fallback for slow devices / first load
-    const t = setTimeout(run, 80);
-    return () => { cancelAnimationFrame(raf1); clearTimeout(t); };
+    const raf1 = requestAnimationFrame(() => { run(); requestAnimationFrame(run); });
+    const t1 = setTimeout(run, 80);
+    const t2 = setTimeout(run, 300);
+    return () => { cancelAnimationFrame(raf1); clearTimeout(t1); clearTimeout(t2); };
   }, [activeTab, positionIndicatorAt]);
 
   // Interpolate icon/text color based on continuous navPos
