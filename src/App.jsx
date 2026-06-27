@@ -1024,15 +1024,23 @@ const App = () => {
     e.target.value = '';
     setLoading(true); stopScanner();
     setScanResult(null); setScanError(null); setScannerOpen(true);
-    const formData = new FormData();
-    formData.append('file', file, file.name);
+    const blobUrl = URL.createObjectURL(file);
     try {
-      const res = await fetch(getApiUrl('scan'), { method: 'POST', body: formData });
-      const data = await res.json();
-      if (data.success) setScanResult(data);
-      else setScanError(data.error || 'Код не распознан на фото');
-    } catch (e) { setScanError('Ошибка загрузки: ' + e.message); }
-    finally { setLoading(false); }
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX, BarcodeFormat.QR_CODE]);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      const reader = new BrowserMultiFormatReader(hints);
+      const result = await reader.decodeFromImageUrl(blobUrl);
+      URL.revokeObjectURL(blobUrl);
+      if (result?.getText()) {
+        await fetchProduct(result.getText());
+      } else {
+        setScanError('Код не найден на фото. Попробуйте другое фото.');
+      }
+    } catch (err) {
+      URL.revokeObjectURL(blobUrl);
+      setScanError('Код не найден на фото. Убедитесь, что код чёткий и хорошо освещён.');
+    } finally { setLoading(false); }
   };
 
   const handleAddMedicine = async () => {
