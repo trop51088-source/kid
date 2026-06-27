@@ -1023,6 +1023,7 @@ const App = () => {
     if (!file) return;
     e.target.value = '';
     setLoading(true); stopScanner();
+    setScanResult(null); setScanError(null); setScannerOpen(true);
     const formData = new FormData();
     formData.append('file', file, file.name);
     try {
