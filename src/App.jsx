@@ -1245,7 +1245,7 @@ const App = () => {
               const deleting = deletingMeds.has(med.id);
               return (
                 <div key={med.id} className={`med-row${deleting ? ' row-deleting' : ''}`}>
-                  <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}><CloseIcon /></button>
+                  {open && <button className="del-btn" onClick={e => { e.stopPropagation(); deleteMedicine(med.id); }}><CloseIcon /></button>}
                   <div
                     className={`med-card${open ? ' swiped' : ''}`}
                     onClick={e => { if (!open) { e.stopPropagation(); setSelectedMed(med); } }}
@@ -1329,7 +1329,7 @@ const App = () => {
                       const deleting = deletingIntakes.has(item.id);
                       return (
                         <div key={item.id} className={`intake-row${deleting ? ' row-deleting' : ''}`}>
-                          <button className="del-btn" onClick={e => { e.stopPropagation(); deleteIntake(item.id); }}><CloseIcon /></button>
+                          {open && <button className="del-btn" onClick={e => { e.stopPropagation(); deleteIntake(item.id); }}><CloseIcon /></button>}
                           <div
                             className={`intake-card${item.done ? ' intake-done' : ''}${open ? ' swiped' : ''}`}
                             onTouchStart={e => { touchStartX.current = e.touches[0].clientX; }}

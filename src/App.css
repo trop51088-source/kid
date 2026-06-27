@@ -22,30 +22,9 @@ body {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(160deg, #9ec8e8 0%, #6aadd8 35%, #a8cce8 65%, #c2dff0 100%);
+  background: #A8CBE8;
   position: relative;
   overflow: hidden;
-}
-/* декоративные блобы — делают стекло визуально видимым */
-.app::before {
-  content: '';
-  position: absolute;
-  width: 320px; height: 320px;
-  background: radial-gradient(circle, rgba(255,255,255,0.35) 0%, transparent 70%);
-  top: -80px; right: -60px;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-}
-.app::after {
-  content: '';
-  position: absolute;
-  width: 280px; height: 280px;
-  background: radial-gradient(circle, rgba(100,180,240,0.40) 0%, transparent 70%);
-  bottom: 80px; left: -80px;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* ── HOME ── */
@@ -130,12 +109,12 @@ body {
 .add-btn {
   width: 100%;
   padding: 18px;
-  background: rgba(0,0,0,0.72);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
   color: #fff;
-  border: 1px solid rgba(255,255,255,0.14);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 4px 16px rgba(0,0,0,0.20);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 4px 16px rgba(0,0,0,0.25);
   border-radius: 16px;
   font-size: 17px;
   font-weight: 700;
@@ -144,7 +123,7 @@ body {
   margin-bottom: 24px;
   letter-spacing: -0.01em;
 }
-.add-btn:active { opacity: 0.80; transform: scale(0.99); }
+.add-btn:active { opacity: 0.82; transform: scale(0.99); }
 
 .medicines { display: flex; flex-direction: column; gap: 12px; }
 
