@@ -964,6 +964,8 @@ const App = () => {
     });
     const tabs = ['search', 'home', 'schedule'];
     setActiveTab(tabs[nearest]);
+    // Always snap indicator — even if activeTab didn't change, useEffect won't fire
+    positionIndicatorAt(nearest);
   };
 
   const openScanner = () => {
