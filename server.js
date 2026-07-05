@@ -6,11 +6,38 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 80;
 
+app.disable('x-powered-by');
+
+// Базовые security-заголовки
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'dist')));
 
-app.get('/api/medicine-info', async (req, res) => {
+// Простой rate limit в памяти: 30 запросов/мин с одного IP
+const hits = new Map();
+const RATE_LIMIT = 30;
+const WINDOW_MS = 60 * 1000;
+setInterval(() => hits.clear(), WINDOW_MS).unref();
+
+const rateLimit = (req, res, next) => {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+  const n = (hits.get(ip) || 0) + 1;
+  hits.set(ip, n);
+  if (n > RATE_LIMIT) return res.status(429).json({ error: 'Too many requests' });
+  next();
+};
+
+app.get('/api/medicine-info', rateLimit, async (req, res) => {
   const { name } = req.query;
-  if (!name) return res.json({ error: 'No name' });
+  if (!name || typeof name !== 'string') return res.json({ error: 'No name' });
+  if (name.length > 200) return res.status(400).json({ error: 'Name too long' });
 
   const headers = {
     'Accept': 'application/json, text/plain, */*',
@@ -32,11 +59,9 @@ app.get('/api/medicine-info', async (req, res) => {
         signal: AbortSignal.timeout(8000),
       });
       const text = await response.text();
-      console.log(`[GRLS] ${response.status} ${url.substring(0, 80)} → ${text.substring(0, 300)}`);
       if (!response.ok) continue;
       try {
         const data = JSON.parse(text);
-        // Нормализуем структуру ответа
         const rows = data.rows || data.data || data.medicines || (Array.isArray(data) ? data : []);
         if (rows.length > 0) return res.json({ ok: true, rows });
       } catch { continue; }
