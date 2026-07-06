@@ -917,9 +917,12 @@ const App = () => {
   // Interpolate icon/text color based on continuous navPos
   const getNavBtnStyle = (idx) => {
     const t = Math.max(0, Math.min(1, 1 - Math.abs(navPos - idx)));
-    // inactive: rgba(255,255,255,0.50) → active: rgba(255,255,255,1.0)
-    const a = (0.50 + 0.50 * t).toFixed(2);
-    return { color: `rgba(255,255,255,${a})` };
+    // inactive: rgba(60,60,67,0.68) (iOS secondary label) → active: #0A7AFF (iOS blue)
+    const r = Math.round(60 + (10 - 60) * t);
+    const g = Math.round(60 + (122 - 60) * t);
+    const b = Math.round(67 + (255 - 67) * t);
+    const a = (0.68 + 0.32 * t).toFixed(2);
+    return { color: `rgba(${r},${g},${b},${a})` };
   };
 
   const handleNavTouchStart = (e) => {
