@@ -247,27 +247,34 @@ body {
   touch-action: none;
 }
 
-/* Liquid Glass layer — iOS 26: светлое морозное стекло, рефракция, блик по верхней кромке */
+/* Liquid Glass layer — iOS 26: сильно прозрачное стекло, преломление фона по кромке.
+   Базовый вариант (Safari/Firefox) — blur-фолбэк; .lg-on (Chromium) — настоящая
+   рефракция через SVG-фильтр #lg-bar (карта смещений генерируется в JS). */
 .glass-body {
   position: absolute;
   inset: 0;
   border-radius: 50px;
   background:
-    linear-gradient(178deg, rgba(255,255,255,0.50) 0%, rgba(255,255,255,0.10) 45%, rgba(255,255,255,0.22) 100%),
-    rgba(255, 255, 255, 0.36);
-  backdrop-filter: blur(44px) saturate(190%);
-  -webkit-backdrop-filter: blur(44px) saturate(190%);
-  border: 0.5px solid rgba(255,255,255,0.65);
+    linear-gradient(178deg, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.05) 45%, rgba(255,255,255,0.16) 100%);
+  backdrop-filter: blur(12px) saturate(170%);
+  -webkit-backdrop-filter: blur(12px) saturate(170%);
+  border: 0.5px solid rgba(255,255,255,0.55);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.85),
-    inset 0 -0.5px 0 rgba(255,255,255,0.30),
-    inset 1px 0 0 rgba(255,255,255,0.28),
-    inset -1px 0 0 rgba(255,255,255,0.28),
-    0 10px 34px rgba(31, 45, 80, 0.16),
-    0 3px 10px rgba(31, 45, 80, 0.10),
-    0 1px 2px rgba(31, 45, 80, 0.06);
+    inset 0 1px 0 rgba(255,255,255,0.75),
+    inset 0 -0.5px 0 rgba(255,255,255,0.25),
+    inset 1px 0 0 rgba(255,255,255,0.20),
+    inset -1px 0 0 rgba(255,255,255,0.20),
+    0 10px 34px rgba(31, 45, 80, 0.14),
+    0 3px 10px rgba(31, 45, 80, 0.08),
+    0 1px 2px rgba(31, 45, 80, 0.05);
   pointer-events: none;
   z-index: 0;
+}
+.lg-on .glass-body {
+  background:
+    linear-gradient(178deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.02) 45%, rgba(255,255,255,0.10) 100%);
+  backdrop-filter: url(#lg-bar);
+  -webkit-backdrop-filter: url(#lg-bar);
 }
 
 .nav-btn {
@@ -319,24 +326,59 @@ body {
   transition: transform 0.08s ease-out;
 }
 
-/* Тумблер — выпуклая стеклянная «капля» под активной вкладкой */
+/* Пузырь-линза — прозрачная стеклянная капля над активной вкладкой.
+   Выше самой панели (top/bottom отрицательные), позицию и растяжение
+   ведёт JS-пружина (style.left + transform), CSS-transition нет.
+   В Chromium (.lg-on) — линзовое преломление + хром. аберрация (#lg-lens). */
 .nav-indicator {
   position: absolute;
-  top: 5px;
-  bottom: 5px;
-  border-radius: 38px;
+  top: -6px;
+  bottom: -6px;
+  left: -200px;
+  border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.78) 100%);
-  border: 0.5px solid rgba(255,255,255,0.90);
+    linear-gradient(180deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.08) 55%, rgba(255,255,255,0.16) 100%);
+  backdrop-filter: blur(2px) saturate(160%) brightness(1.06);
+  -webkit-backdrop-filter: blur(2px) saturate(160%) brightness(1.06);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 -1px 2px rgba(31, 45, 80, 0.05),
-    0 3px 12px rgba(31, 45, 80, 0.16),
-    0 1px 3px rgba(31, 45, 80, 0.10);
-  transition: left 0.30s cubic-bezier(0.34, 1.15, 0.64, 1),
-              width 0.30s cubic-bezier(0.34, 1.15, 0.64, 1);
+    0 6px 18px rgba(31, 45, 80, 0.18),
+    0 2px 6px rgba(31, 45, 80, 0.10);
   pointer-events: none;
   z-index: 0;
+  transform-origin: center;
+  will-change: left, transform;
+}
+.lg-on .nav-indicator {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.02) 55%, rgba(255,255,255,0.08) 100%);
+  backdrop-filter: url(#lg-lens);
+  -webkit-backdrop-filter: url(#lg-lens);
+}
+/* стеклянная кромка линзы */
+.nav-indicator::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255,255,255,0.70),
+    inset 0 11px 14px -11px rgba(255,255,255,0.95),
+    inset 0 -11px 14px -11px rgba(255,255,255,0.55),
+    inset 7px 0 10px -8px rgba(255,255,255,0.50),
+    inset -7px 0 10px -8px rgba(255,255,255,0.50),
+    inset 0 -1px 3px rgba(31,45,80,0.06);
+}
+/* верхний блик */
+.nav-indicator::after {
+  content: '';
+  position: absolute;
+  left: 16%;
+  right: 16%;
+  top: 5%;
+  height: 32%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0));
+  filter: blur(1px);
 }
 
 /* ── SCANNER OVERLAY ── */
