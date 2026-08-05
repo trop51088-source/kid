@@ -73,6 +73,36 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
   res.json({ ok: false, rows: [] });
 });
 
+app.get('/api/check-cis', rateLimit, async (req, res) => {
+  const { cis } = req.query;
+  if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
+  if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
+
+  const headers = {
+    'Accept': 'application/json, text/plain, */*',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  };
+
+  const endpoints = [
+    `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
+    `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
+  ];
+
+  let lastError = null;
+  for (const url of endpoints) {
+    try {
+      const response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+      if (!response.ok) { lastError = `HTTP ${response.status}`; continue; }
+      const data = await response.json();
+      return res.json({ success: true, cis, data });
+    } catch (e) {
+      lastError = e.message;
+      console.error('[CRPT] fetch error:', e.message);
+    }
+  }
+
+  res.json({ success: false, error: lastError || 'Не удалось получить данные о препарате.' });
+});
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
