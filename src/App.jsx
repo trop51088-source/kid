@@ -1001,27 +1001,22 @@ const App = () => {
 
   const stopScanner = () => { if (readerRef.current) { readerRef.current.reset(); readerRef.current = null; } setScanning(false); };
 
-  const fetchProduct = async (text) => {
+    const fetchProduct = async (text) => {
     setLoading(true); stopScanner();
     const cis = text.trim();
-    const endpoints = [
-      `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
-      `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
-    ];
-    let lastError = null;
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if (!res.ok) { lastError = `HTTP ${res.status}`; continue; }
-        const data = await res.json();
-        setScanResult({ success: true, cis, data });
+    try {
+      const res = await fetch(`/api/check-cis?cis=${encodeURIComponent(cis)}`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      if (data.success) {
+        setScanResult({ success: true, cis, data: data.data });
         setLoading(false);
         return;
-      } catch (e) { lastError = e.message; }
-    }
+      }
+    } catch (e) { /* falls through to error below */ }
     setScanError('Не удалось получить данные о препарате.');
     setLoading(false);
   };
+
 
   const handlePhotoUpload = async (e) => {
     const file = e.target.files?.[0];
