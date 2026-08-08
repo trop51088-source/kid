@@ -4,13 +4,10 @@ meta:
     name: npm
     version: "20"
 build:
-  build:
   skip: false
-  additionalCommands:
-    - npm install && npm install https-proxy-agent node-fetch@2 && npm run build
+  additionalCommands: npm install && npm install https-proxy-agent node-fetch@2 && npm run build
   artifacts:
     "*": /
-
 run:
   scriptName: null
   scriptArguments: null
