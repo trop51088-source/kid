@@ -1001,21 +1001,26 @@ const App = () => {
 
   const stopScanner = () => { if (readerRef.current) { readerRef.current.reset(); readerRef.current = null; } setScanning(false); };
 
-    const fetchProduct = async (text) => {
+      const fetchProduct = async (text) => {
     setLoading(true); stopScanner();
     const cis = text.trim();
     try {
       const res = await fetch(`/api/check-cis?cis=${encodeURIComponent(cis)}`, { headers: { 'Accept': 'application/json' } });
       const data = await res.json();
+      
       if (data.success) {
         setScanResult({ success: true, cis, data: data.data });
-        setLoading(false);
-        return;
+      } else {
+        // Теперь мы покажем РЕАЛЬНУЮ ошибку от сервера
+        setScanError('Ответ сервера: ' + (data.error || 'Неизвестная ошибка базы'));
       }
-    } catch (e) { /* falls through to error below */ }
-    setScanError('Не удалось получить данные о препарате.');
+    } catch (e) {
+      // И покажем, если сервер вообще упал или отдал не тот формат
+      setScanError('Системная ошибка: ' + e.message);
+    }
     setLoading(false);
   };
+
 
 
   const handlePhotoUpload = async (e) => {
