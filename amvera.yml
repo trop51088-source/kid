@@ -5,7 +5,7 @@ meta:
     version: "20"
 build:
   skip: false
-  additionalCommands: npm install && npm run build
+  additionalCommands: npm install && npm install https-proxy-agent node-fetch@2 && npm run build
   artifacts:
     "*": /
 run:
