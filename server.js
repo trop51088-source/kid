@@ -119,11 +119,8 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
   res.json({ success: false, error: `Прокси недоступен: ${lastError}` });
 });
 
-  res.json({ success: false, error: `Прокси заблокирован или недоступен: ${lastError}` });
-});
-
-
 app.get('*', (_req, res) => {
+
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
