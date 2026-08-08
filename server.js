@@ -83,8 +83,11 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
      return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
   }
 
-  const { HttpsProxyAgent } = require('https-proxy-agent');
-  const fetchWithProxy = require('node-fetch');
+  // ИСПРАВЛЕНИЕ: Используем современный import вместо устаревшего require
+  const { HttpsProxyAgent } = await import('https-proxy-agent');
+  const fetchModule = await import('node-fetch');
+  const fetchWithProxy = fetchModule.default || fetchModule;
+  
   const agent = new HttpsProxyAgent(proxyUrl);
 
   const headers = {
@@ -112,6 +115,9 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
       console.error('[CRPT Proxy Error]:', e.message);
     }
   }
+
+  res.json({ success: false, error: `Прокси недоступен: ${lastError}` });
+});
 
   res.json({ success: false, error: `Прокси заблокирован или недоступен: ${lastError}` });
 });
