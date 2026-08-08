@@ -78,62 +78,15 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
   if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
   if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
 
-  // Diagnostic: check if outbound HTTPS works at all from this container
-  let networkTest = 'not run';
-  try {
-    const testRes = await fetch('https://api.github.com/zen', { signal: AbortSignal.timeout(5000) });
-    networkTest = `control fetch OK, status ${testRes.status}`;
-  } catch (e) {
-    networkTest = `control fetch FAILED: ${e.message}`;
-  }
-
-  const attempts = [];
-  const headerVariants = [
-    { 'Accept': 'application/json, text/plain, */*', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
-    { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36' },
-    { 'Accept': '*/*' },
-  ];
-
-  const endpoints = [
-    `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
-    `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
-  ];
-
-  for (const url of endpoints) {
-    for (const headers of headerVariants) {
-      try {
-        const response = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
-        attempts.push({ url, headers: headers['User-Agent'] || 'minimal', status: response.status });
-        if (response.ok) {
-          const data = await response.json();
-          return res.json({ success: true, cis, data, networkTest, attempts });
-        }
-      } catch (e) {
-        attempts.push({ url, headers: headers['User-Agent'] || 'minimal', error: e.message });
-      }
-    }
-  }
-
-  res.json({ success: false, error: 'Не удалось получить данные о препарате.', networkTest, attempts });
-});
-
-app.get('/api/check-cis', rateLimit, async (req, res) => {
-  const { cis } = req.query;
-  if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
-  if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
-
-  // Достаем наш прокси из настроек Amvera
   const proxyUrl = process.env.CRPT_PROXY;
   if (!proxyUrl) {
-     return res.status(500).json({ success: false, error: 'Прокси не настроен на сервере' });
+     return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
   }
 
-  // Подключаем библиотеки
   const { HttpsProxyAgent } = require('https-proxy-agent');
   const fetchWithProxy = require('node-fetch');
   const agent = new HttpsProxyAgent(proxyUrl);
 
-  // Маскируемся под обычный iPhone
   const headers = {
     'Accept': 'application/json, text/plain, */*',
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
@@ -147,9 +100,11 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
   let lastError = null;
   for (const url of endpoints) {
     try {
-      // Делаем запрос через мобильный прокси
-      const response = await fetchWithProxy(url, { headers, agent, timeout: 10000 });
-      if (!response.ok) { lastError = `HTTP ${response.status}`; continue; }
+      const response = await fetchWithProxy(url, { headers, agent, timeout: 12000 });
+      if (!response.ok) { 
+        lastError = `HTTP ${response.status}`; 
+        continue; 
+      }
       const data = await response.json();
       return res.json({ success: true, cis, data });
     } catch (e) {
@@ -158,7 +113,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     }
   }
 
-  res.json({ success: false, error: lastError || 'Не удалось получить данные о препарате.' });
+  res.json({ success: false, error: `Прокси заблокирован или недоступен: ${lastError}` });
 });
 
 
