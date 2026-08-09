@@ -75,6 +75,9 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
+    // МАГИЯ ЗДЕСЬ: Отключаем строгую проверку SSL-сертификатов (решает проблему EPROTO)
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
     const { cis } = req.query;
     if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
     if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
@@ -88,10 +91,8 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     const fetchModule = await import('node-fetch');
     const fetchWithProxy = fetchModule.default || fetchModule;
     
-    // Защита от падения сервера из-за кривой ссылки
     let agent;
     try {
-      // .trim() автоматически удалит случайные пробелы до и после ссылки
       agent = new HttpsProxyAgent(proxyUrl.trim()); 
     } catch (err) {
       return res.status(500).json({ success: false, error: 'Неверный формат ссылки прокси в настройках' });
@@ -129,7 +130,6 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
-
 app.get('*', (_req, res) => {
 
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
