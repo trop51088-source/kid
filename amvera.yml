@@ -5,7 +5,7 @@ meta:
     version: "20"
 build:
   skip: false
-  additionalCommands: npm install && npm install proxy-agent node-fetch@2 && npm run build
+  additionalCommands: npm install && npm install axios https-proxy-agent && npm run build
   artifacts:
     "*": /
 run:
