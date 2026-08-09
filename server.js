@@ -74,7 +74,6 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 });
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
-    // 1. Отключаем паранойю безопасности для государственных сертификатов РФ
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
     const { cis } = req.query;
@@ -86,7 +85,6 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
        return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
 
-    // Подключаем модули
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
     const { HttpsProxyAgent } = await import('https-proxy-agent');
@@ -98,9 +96,16 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
       return res.status(500).json({ success: false, error: 'Критическая ошибка: неверный формат ссылки прокси' });
     }
 
+    // ВАЖНО: Полная маскировка под официальное приложение Честного Знака
     const headers = {
-      'Accept': 'application/json, text/plain, */*',
-      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+      'Accept': '*/*',
+      'Accept-Language': 'ru-RU,ru;q=0.9',
+      'Connection': 'keep-alive',
+      'User-Agent': 'Честный ЗНАК/6.20.0 (iPhone; iOS 16.6; Scale/3.00)',
+      'X-Device-OS': 'iOS',
+      'X-Device-OS-Version': '16.6',
+      'X-App-Version': '6.20.0',
+      'Cache-Control': 'no-cache'
     };
 
     const endpoints = [
@@ -108,7 +113,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
       `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
     ];
 
-    let logs = []; // Собираем детальный отчет о каждом шаге
+    let logs = []; 
     let successData = null;
 
     for (const url of endpoints) {
@@ -116,31 +121,27 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
         const response = await axios.get(url, {
           headers,
           httpsAgent: agent,
-          proxy: false, // ВАЖНЕЙШАЯ НАСТРОЙКА: заставляет Axios использовать наш HttpsProxyAgent для туннеля
-          timeout: 20000, // Даем мобильному прокси 20 секунд на раздумья
-          validateStatus: () => true // Читаем любой ответ, даже если это ошибка 403 от Честного Знака
+          proxy: false, 
+          timeout: 20000, 
+          validateStatus: () => true 
         });
         
         if (response.status === 200 && response.data) {
             successData = response.data;
-            break; // Если получили данные — немедленно выходим из цикла
+            break; 
         } else {
-            // Если прокси или ЧЗ ответили ошибкой (например, 403, 407, 502)
             const errorSample = typeof response.data === 'string' ? response.data.substring(0, 50) : JSON.stringify(response.data).substring(0, 50);
             logs.push(`HTTP ${response.status} (${errorSample})`);
         }
       } catch (e) {
-        // Если прокси вообще не ответил (упал, таймаут)
         logs.push(`Сбой сети: ${e.message}`);
       }
     }
 
-    // Обработка результатов
     if (successData) {
       return res.json({ success: true, cis, data: successData });
     } else {
-      // Выдаем прямо на фронтенд полный отчет, почему не получилось
-      return res.json({ success: false, error: `Прокси не пробил. Отчет: ${logs.join(' | ')}` });
+      return res.json({ success: false, error: `Защита ЧЗ не пускает. Отчет: ${logs.join(' | ')}` });
     }
 
   } catch (globalError) {
@@ -148,6 +149,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     res.status(500).json({ success: false, error: `Внутренняя ошибка сервера: ${globalError.message}` });
   }
 });
+
 
 app.get('*', (_req, res) => {
 
