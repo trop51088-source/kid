@@ -75,7 +75,7 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
-    // МАГИЯ ЗДЕСЬ: Отключаем строгую проверку SSL-сертификатов (решает проблему EPROTO)
+    // Отключаем строгую проверку самоподписанных SSL-сертификатов шлюза
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
     const { cis } = req.query;
@@ -87,13 +87,14 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
        return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
 
-    const { HttpsProxyAgent } = await import('https-proxy-agent');
+    // Подключаем универсальный модуль агент-прокси
+    const { ProxyAgent } = await import('proxy-agent');
     const fetchModule = await import('node-fetch');
     const fetchWithProxy = fetchModule.default || fetchModule;
     
     let agent;
     try {
-      agent = new HttpsProxyAgent(proxyUrl.trim()); 
+      agent = new ProxyAgent(proxyUrl.trim()); 
     } catch (err) {
       return res.status(500).json({ success: false, error: 'Неверный формат ссылки прокси в настройках' });
     }
@@ -130,6 +131,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
+
 app.get('*', (_req, res) => {
 
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
