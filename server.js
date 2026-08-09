@@ -72,10 +72,9 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 
   res.json({ ok: false, rows: [] });
 });
-
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
-    // Отключаем паранойю безопасности для государственных сертификатов
+    // 1. Отключаем паранойю безопасности для государственных сертификатов РФ
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
     const { cis } = req.query;
@@ -87,7 +86,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
        return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
 
-    // Подключаем бронебойный axios
+    // Подключаем модули
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
     const { HttpsProxyAgent } = await import('https-proxy-agent');
@@ -96,7 +95,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     try {
       agent = new HttpsProxyAgent(proxyUrl.trim());
     } catch (err) {
-      return res.status(500).json({ success: false, error: 'Неверный формат ссылки прокси' });
+      return res.status(500).json({ success: false, error: 'Критическая ошибка: неверный формат ссылки прокси' });
     }
 
     const headers = {
@@ -109,34 +108,46 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
       `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
     ];
 
-    let lastError = null;
+    let logs = []; // Собираем детальный отчет о каждом шаге
+    let successData = null;
+
     for (const url of endpoints) {
       try {
         const response = await axios.get(url, {
           headers,
           httpsAgent: agent,
-          timeout: 15000,
-          validateStatus: () => true // Не падать, даже если прокси ругается, а прочитать его ответ
+          proxy: false, // ВАЖНЕЙШАЯ НАСТРОЙКА: заставляет Axios использовать наш HttpsProxyAgent для туннеля
+          timeout: 20000, // Даем мобильному прокси 20 секунд на раздумья
+          validateStatus: () => true // Читаем любой ответ, даже если это ошибка 403 от Честного Знака
         });
         
-        if (response.status === 200) {
-            return res.json({ success: true, cis, data: response.data });
+        if (response.status === 200 && response.data) {
+            successData = response.data;
+            break; // Если получили данные — немедленно выходим из цикла
         } else {
-            lastError = `Код ${response.status} от ${url}`;
+            // Если прокси или ЧЗ ответили ошибкой (например, 403, 407, 502)
+            const errorSample = typeof response.data === 'string' ? response.data.substring(0, 50) : JSON.stringify(response.data).substring(0, 50);
+            logs.push(`HTTP ${response.status} (${errorSample})`);
         }
       } catch (e) {
-        lastError = e.message;
-        console.error('[Axios Error]:', e.message);
+        // Если прокси вообще не ответил (упал, таймаут)
+        logs.push(`Сбой сети: ${e.message}`);
       }
     }
 
-    res.json({ success: false, error: `Прокси заблокировал запрос: ${lastError}` });
+    // Обработка результатов
+    if (successData) {
+      return res.json({ success: true, cis, data: successData });
+    } else {
+      // Выдаем прямо на фронтенд полный отчет, почему не получилось
+      return res.json({ success: false, error: `Прокси не пробил. Отчет: ${logs.join(' | ')}` });
+    }
+
   } catch (globalError) {
     console.error('[Global Error]:', globalError);
-    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
+    res.status(500).json({ success: false, error: `Внутренняя ошибка сервера: ${globalError.message}` });
   }
 });
-
 
 app.get('*', (_req, res) => {
 
