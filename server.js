@@ -75,7 +75,7 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
-    // Отключаем строгую проверку самоподписанных SSL-сертификатов шлюза
+    // Отключаем паранойю безопасности для государственных сертификатов
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
     const { cis } = req.query;
@@ -87,16 +87,16 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
        return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
 
-    // Подключаем универсальный модуль агент-прокси
-    const { ProxyAgent } = await import('proxy-agent');
-    const fetchModule = await import('node-fetch');
-    const fetchWithProxy = fetchModule.default || fetchModule;
-    
+    // Подключаем бронебойный axios
+    const axiosModule = await import('axios');
+    const axios = axiosModule.default || axiosModule;
+    const { HttpsProxyAgent } = await import('https-proxy-agent');
+
     let agent;
     try {
-      agent = new ProxyAgent(proxyUrl.trim()); 
+      agent = new HttpsProxyAgent(proxyUrl.trim());
     } catch (err) {
-      return res.status(500).json({ success: false, error: 'Неверный формат ссылки прокси в настройках' });
+      return res.status(500).json({ success: false, error: 'Неверный формат ссылки прокси' });
     }
 
     const headers = {
@@ -112,25 +112,31 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     let lastError = null;
     for (const url of endpoints) {
       try {
-        const response = await fetchWithProxy(url, { headers, agent, timeout: 12000 });
-        if (!response.ok) { 
-          lastError = `HTTP ${response.status}`; 
-          continue; 
+        const response = await axios.get(url, {
+          headers,
+          httpsAgent: agent,
+          timeout: 15000,
+          validateStatus: () => true // Не падать, даже если прокси ругается, а прочитать его ответ
+        });
+        
+        if (response.status === 200) {
+            return res.json({ success: true, cis, data: response.data });
+        } else {
+            lastError = `Код ${response.status} от ${url}`;
         }
-        const data = await response.json();
-        return res.json({ success: true, cis, data });
       } catch (e) {
         lastError = e.message;
-        console.error('[CRPT Proxy Error]:', e.message);
+        console.error('[Axios Error]:', e.message);
       }
     }
 
-    res.json({ success: false, error: `Прокси недоступен: ${lastError}` });
+    res.json({ success: false, error: `Прокси заблокировал запрос: ${lastError}` });
   } catch (globalError) {
     console.error('[Global Error]:', globalError);
     res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
   }
 });
+
 
 app.get('*', (_req, res) => {
 
