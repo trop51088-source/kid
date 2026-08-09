@@ -74,49 +74,60 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 });
 
 app.get('/api/check-cis', rateLimit, async (req, res) => {
-  const { cis } = req.query;
-  if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
-  if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
+  try {
+    const { cis } = req.query;
+    if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
+    if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
 
-  const proxyUrl = process.env.CRPT_PROXY;
-  if (!proxyUrl) {
-     return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
-  }
-
-  // ИСПРАВЛЕНИЕ: Используем современный import вместо устаревшего require
-  const { HttpsProxyAgent } = await import('https-proxy-agent');
-  const fetchModule = await import('node-fetch');
-  const fetchWithProxy = fetchModule.default || fetchModule;
-  
-  const agent = new HttpsProxyAgent(proxyUrl);
-
-  const headers = {
-    'Accept': 'application/json, text/plain, */*',
-    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-  };
-
-  const endpoints = [
-    `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
-    `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
-  ];
-
-  let lastError = null;
-  for (const url of endpoints) {
-    try {
-      const response = await fetchWithProxy(url, { headers, agent, timeout: 12000 });
-      if (!response.ok) { 
-        lastError = `HTTP ${response.status}`; 
-        continue; 
-      }
-      const data = await response.json();
-      return res.json({ success: true, cis, data });
-    } catch (e) {
-      lastError = e.message;
-      console.error('[CRPT Proxy Error]:', e.message);
+    const proxyUrl = process.env.CRPT_PROXY;
+    if (!proxyUrl) {
+       return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
-  }
 
-  res.json({ success: false, error: `Прокси недоступен: ${lastError}` });
+    const { HttpsProxyAgent } = await import('https-proxy-agent');
+    const fetchModule = await import('node-fetch');
+    const fetchWithProxy = fetchModule.default || fetchModule;
+    
+    // Защита от падения сервера из-за кривой ссылки
+    let agent;
+    try {
+      // .trim() автоматически удалит случайные пробелы до и после ссылки
+      agent = new HttpsProxyAgent(proxyUrl.trim()); 
+    } catch (err) {
+      return res.status(500).json({ success: false, error: 'Неверный формат ссылки прокси в настройках' });
+    }
+
+    const headers = {
+      'Accept': 'application/json, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+    };
+
+    const endpoints = [
+      `https://mobile.api.crpt.ru/mobile/check?cis=${encodeURIComponent(cis)}`,
+      `https://ismotp.crpt.ru/api/v1/facade/check?cis=${encodeURIComponent(cis)}`,
+    ];
+
+    let lastError = null;
+    for (const url of endpoints) {
+      try {
+        const response = await fetchWithProxy(url, { headers, agent, timeout: 12000 });
+        if (!response.ok) { 
+          lastError = `HTTP ${response.status}`; 
+          continue; 
+        }
+        const data = await response.json();
+        return res.json({ success: true, cis, data });
+      } catch (e) {
+        lastError = e.message;
+        console.error('[CRPT Proxy Error]:', e.message);
+      }
+    }
+
+    res.json({ success: false, error: `Прокси недоступен: ${lastError}` });
+  } catch (globalError) {
+    console.error('[Global Error]:', globalError);
+    res.status(500).json({ success: false, error: 'Внутренняя ошибка сервера' });
+  }
 });
 
 app.get('*', (_req, res) => {
