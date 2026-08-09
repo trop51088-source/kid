@@ -88,15 +88,20 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
     const { HttpsProxyAgent } = await import('https-proxy-agent');
+    const crypto = await import('crypto'); // Добавили криптографию для подмены отпечатка
 
     let agent;
     try {
-      agent = new HttpsProxyAgent(proxyUrl.trim());
+      agent = new HttpsProxyAgent(proxyUrl.trim(), {
+        // ПОЛНАЯ ПОДМЕНА TLS-ОТПЕЧАТКА (JA3 SPOOFING)
+        ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256',
+        honorCipherOrder: true,
+        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1
+      });
     } catch (err) {
       return res.status(500).json({ success: false, error: 'Критическая ошибка: неверный формат ссылки прокси' });
     }
 
-    // ВАЖНО: Полная маскировка под официальное приложение Честного Знака
     const headers = {
       'Accept': '*/*',
       'Accept-Language': 'ru-RU,ru;q=0.9',
@@ -149,7 +154,6 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     res.status(500).json({ success: false, error: `Внутренняя ошибка сервера: ${globalError.message}` });
   }
 });
-
 
 app.get('*', (_req, res) => {
 
