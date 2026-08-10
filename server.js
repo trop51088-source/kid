@@ -72,6 +72,7 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 
   res.json({ ok: false, rows: [] });
 });
+
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -92,13 +93,22 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
 
     let agent;
     try {
+      // 1. Вытаскиваем логин и пароль из ссылки и кодируем в Base64
+      const parsedProxy = new URL(proxyUrl.trim());
+      const auth = Buffer.from(`${parsedProxy.username}:${parsedProxy.password}`).toString('base64');
+
       agent = new HttpsProxyAgent(proxyUrl.trim(), {
         // ПОЛНАЯ ПОДМЕНА TLS-ОТПЕЧАТКА (JA3 SPOOFING)
         ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256',
         honorCipherOrder: true,
-        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1
+        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1,
+        // 2. ПРИНУДИТЕЛЬНО ПЕРЕДАЕМ АВТОРИЗАЦИЮ ПРОКСИ-СЕРВЕРУ
+        headers: {
+          'Proxy-Authorization': `Basic ${auth}`
+        }
       });
     } catch (err) {
+      console.error('Ошибка парсинга прокси:', err.message);
       return res.status(500).json({ success: false, error: 'Критическая ошибка: неверный формат ссылки прокси' });
     }
 
