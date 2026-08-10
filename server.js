@@ -89,26 +89,19 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
     const { HttpsProxyAgent } = await import('https-proxy-agent');
-    const crypto = await import('crypto'); // Добавили криптографию для подмены отпечатка
+    const crypto = await import('crypto'); 
 
+    // 1. Парсим ссылку, чтобы вытащить логин, пароль, хост и порт
+    const parsedProxy = new URL(proxyUrl.trim());
+    
     let agent;
     try {
-      // 1. Вытаскиваем логин и пароль из ссылки и кодируем в Base64
-      const parsedProxy = new URL(proxyUrl.trim());
-      const auth = Buffer.from(`${parsedProxy.username}:${parsedProxy.password}`).toString('base64');
-
       agent = new HttpsProxyAgent(proxyUrl.trim(), {
-        // ПОЛНАЯ ПОДМЕНА TLS-ОТПЕЧАТКА (JA3 SPOOFING)
         ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256',
         honorCipherOrder: true,
-        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1,
-        // 2. ПРИНУДИТЕЛЬНО ПЕРЕДАЕМ АВТОРИЗАЦИЮ ПРОКСИ-СЕРВЕРУ
-        headers: {
-          'Proxy-Authorization': `Basic ${auth}`
-        }
+        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1
       });
     } catch (err) {
-      console.error('Ошибка парсинга прокси:', err.message);
       return res.status(500).json({ success: false, error: 'Критическая ошибка: неверный формат ссылки прокси' });
     }
 
@@ -136,7 +129,16 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
         const response = await axios.get(url, {
           headers,
           httpsAgent: agent,
-          proxy: false, 
+          // 2. ВОТ ЗДЕСЬ ИДЕТ ПРЯМАЯ АВТОРИЗАЦИЯ ПРОКСИ В AXIOS
+          proxy: {
+            protocol: parsedProxy.protocol.replace(':', ''),
+            host: parsedProxy.hostname,
+            port: parseInt(parsedProxy.port),
+            auth: {
+              username: decodeURIComponent(parsedProxy.username),
+              password: decodeURIComponent(parsedProxy.password)
+            }
+          }, 
           timeout: 20000, 
           validateStatus: () => true 
         });
