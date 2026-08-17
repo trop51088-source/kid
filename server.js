@@ -80,27 +80,31 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
     if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
 
-    let proxyUrl = process.env.CRPT_PROXY;
+    const proxyUrl = process.env.CRPT_PROXY;
     if (!proxyUrl) {
        return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
-    proxyUrl = proxyUrl.trim();
 
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
-    const { HttpsProxyAgent } = await import('https-proxy-agent');
-
-    // Убрали ручную сборку заголовков авторизации! HttpsProxyAgent сделает всё сам.
-    const agent = new HttpsProxyAgent(proxyUrl);
+    
+    // Выкидываем сторонние библиотеки! Разбираем ссылку вручную
+    const parsed = new URL(proxyUrl.trim());
+    const proxyConfig = {
+      protocol: parsed.protocol.replace(':', ''),
+      host: parsed.hostname,
+      port: parseInt(parsed.port),
+      auth: {
+        username: decodeURIComponent(parsed.username),
+        password: decodeURIComponent(parsed.password)
+      }
+    };
 
     const headers = {
       'Accept': '*/*',
       'Accept-Language': 'ru-RU,ru;q=0.9',
       'Connection': 'keep-alive',
       'User-Agent': 'Честный ЗНАК/6.20.0 (iPhone; iOS 16.6; Scale/3.00)',
-      'X-Device-OS': 'iOS',
-      'X-Device-OS-Version': '16.6',
-      'X-App-Version': '6.20.0',
       'Cache-Control': 'no-cache'
     };
 
@@ -116,8 +120,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
       try {
         const response = await axios.get(url, {
           headers,
-          httpsAgent: agent,
-          proxy: false, 
+          proxy: proxyConfig, // Жестко отдаем логин и пароль самому Axios
           timeout: 20000, 
           validateStatus: () => true 
         });
