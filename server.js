@@ -72,7 +72,6 @@ app.get('/api/medicine-info', rateLimit, async (req, res) => {
 
   res.json({ ok: false, rows: [] });
 });
-
 app.get('/api/check-cis', rateLimit, async (req, res) => {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
@@ -89,21 +88,15 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
     const { HttpsProxyAgent } = await import('https-proxy-agent');
-    const crypto = await import('crypto'); 
 
-    // 1. Парсим ссылку, чтобы вытащить логин, пароль, хост и порт
     const parsedProxy = new URL(proxyUrl.trim());
-    
-    let agent;
-    try {
-      agent = new HttpsProxyAgent(proxyUrl.trim(), {
-        ciphers: 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256',
-        honorCipherOrder: true,
-        secureOptions: crypto.constants.SSL_OP_NO_TLSv1 | crypto.constants.SSL_OP_NO_TLSv1_1
-      });
-    } catch (err) {
-      return res.status(500).json({ success: false, error: 'Критическая ошибка: неверный формат ссылки прокси' });
-    }
+    const auth = Buffer.from(`${parsedProxy.username}:${parsedProxy.password}`).toString('base64');
+
+    const agent = new HttpsProxyAgent(proxyUrl.trim(), {
+      headers: {
+        'Proxy-Authorization': `Basic ${auth}`
+      }
+    });
 
     const headers = {
       'Accept': '*/*',
@@ -129,16 +122,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
         const response = await axios.get(url, {
           headers,
           httpsAgent: agent,
-          // 2. ВОТ ЗДЕСЬ ИДЕТ ПРЯМАЯ АВТОРИЗАЦИЯ ПРОКСИ В AXIOS
-          proxy: {
-            protocol: parsedProxy.protocol.replace(':', ''),
-            host: parsedProxy.hostname,
-            port: parseInt(parsedProxy.port),
-            auth: {
-              username: decodeURIComponent(parsedProxy.username),
-              password: decodeURIComponent(parsedProxy.password)
-            }
-          }, 
+          proxy: false, 
           timeout: 20000, 
           validateStatus: () => true 
         });
@@ -166,6 +150,7 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     res.status(500).json({ success: false, error: `Внутренняя ошибка сервера: ${globalError.message}` });
   }
 });
+
 
 app.get('*', (_req, res) => {
 
