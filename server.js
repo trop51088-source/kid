@@ -80,23 +80,18 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
     if (!cis || typeof cis !== 'string') return res.status(400).json({ success: false, error: 'No cis' });
     if (cis.length > 300) return res.status(400).json({ success: false, error: 'cis too long' });
 
-    const proxyUrl = process.env.CRPT_PROXY;
+    let proxyUrl = process.env.CRPT_PROXY;
     if (!proxyUrl) {
        return res.status(500).json({ success: false, error: 'Прокси не настроен в Amvera' });
     }
+    proxyUrl = proxyUrl.trim();
 
     const axiosModule = await import('axios');
     const axios = axiosModule.default || axiosModule;
     const { HttpsProxyAgent } = await import('https-proxy-agent');
 
-    const parsedProxy = new URL(proxyUrl.trim());
-    const auth = Buffer.from(`${parsedProxy.username}:${parsedProxy.password}`).toString('base64');
-
-    const agent = new HttpsProxyAgent(proxyUrl.trim(), {
-      headers: {
-        'Proxy-Authorization': `Basic ${auth}`
-      }
-    });
+    // Убрали ручную сборку заголовков авторизации! HttpsProxyAgent сделает всё сам.
+    const agent = new HttpsProxyAgent(proxyUrl);
 
     const headers = {
       'Accept': '*/*',
