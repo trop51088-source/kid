@@ -146,7 +146,6 @@ app.get('/api/check-cis', rateLimit, async (req, res) => {
   }
 });
 
-
 app.get('*', (_req, res) => {
 
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
